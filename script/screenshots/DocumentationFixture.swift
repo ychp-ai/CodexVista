@@ -86,7 +86,7 @@ enum DocumentationFixture {
         let tokens = index == 29 ? 1_200_000 : (index >= 23 ? 0 : (index % 5 + 1) * 120_000)
         return .init(id: String(day), day: String(day.suffix(5)), total: tokens,
                      uncachedInput: tokens / 5, cachedInput: tokens * 3 / 5,
-                     output: tokens / 5, reasoning: tokens / 10,
+                     output: tokens / 10, reasoning: tokens / 10,
                      estimatedCostUSD: ranking(total: tokens).estimatedCostUSD,
                      referencePricedModelCount: ranking(total: tokens).referencePricedModelCount)
     }

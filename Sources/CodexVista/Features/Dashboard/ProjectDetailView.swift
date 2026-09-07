@@ -274,7 +274,7 @@ struct ProjectDetailView: View {
                     trendCard
                 }
             }
-            .frame(height: 148)
+            .frame(height: 168)
             workspaceProjectCard
         }
     }
@@ -317,85 +317,14 @@ struct ProjectDetailView: View {
     }
 
     private var tokenBreakdownCard: some View {
-        let segments = tokenSegments
-        let visualTotal = segments.reduce(0.0) { result, segment in
-            result + (segment.value > 0 ? max(segment.share, 0.014) : 0)
+        detailCard(title: "Token 构成", icon: "chart.bar.xaxis", height: 168) {
+            TokenCompositionView(breakdown: projectTokenBreakdown)
+                .padding(.top, 2)
         }
-
-        return detailCard(title: "Token 构成", icon: "chart.bar.xaxis", height: 148) {
-            VStack(alignment: .leading, spacing: 8) {
-                GeometryReader { geometry in
-                    HStack(spacing: 1) {
-                        ForEach(segments) { segment in
-                            segment.color
-                                .frame(
-                                    width: segment.value > 0 && visualTotal > 0
-                                        ? max(
-                                            0,
-                                            (geometry.size.width - 3)
-                                                * max(segment.share, 0.014)
-                                                / visualTotal
-                                        )
-                                        : 0
-                                )
-                        }
-                    }
-                    .clipShape(Capsule())
-                }
-                .frame(height: 8)
-                .background(
-                    CodexVistaTheme.dashboardControlBackground,
-                    in: Capsule()
-                )
-
-                LazyVGrid(
-                    columns: [
-                        GridItem(.flexible(), spacing: 8),
-                        GridItem(.flexible(), spacing: 8)
-                    ],
-                    spacing: 6
-                ) {
-                    ForEach(segments) { segment in
-                        tokenSegmentCell(segment)
-                    }
-                }
-            }
-        }
-    }
-
-    private func tokenSegmentCell(_ segment: ProjectTokenSegment) -> some View {
-        HStack(spacing: 7) {
-            Capsule()
-                .fill(segment.color)
-                .frame(width: 3, height: 24)
-
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 4) {
-                    Text(segment.title)
-                        .lineLimit(1)
-                    Spacer(minLength: 2)
-                    Text(TokenFormatter.percentage(segment.share))
-                        .monospacedDigit()
-                }
-                .font(.system(size: 8, weight: .medium, design: .rounded))
-                .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-
-                Text(TokenFormatter.compact(segment.value))
-                    .font(.system(size: 10.5, weight: .semibold, design: .rounded))
-                    .foregroundStyle(CodexVistaTheme.dashboardPrimaryText.opacity(0.90))
-                    .monospacedDigit()
-            }
-        }
-        .padding(.horizontal, 7)
-        .frame(maxWidth: .infinity, minHeight: 34, alignment: .leading)
-        .background(
-            segment.color.opacity(0.045),
-            in: RoundedRectangle(cornerRadius: 7, style: .continuous)
-        )
     }
 
     private var trendCard: some View {
-        detailCard(title: "近 7 日趋势", icon: "chart.xyaxis.line", height: 148) {
+        detailCard(title: "近 7 日趋势", icon: "chart.xyaxis.line", height: 168) {
             Chart(entry.dailyUsage) { point in
                 AreaMark(
                     x: .value("日期", point.date),
@@ -1040,7 +969,7 @@ struct ProjectDetailView: View {
         entry.visibleConversations
     }
 
-    private var tokenSegments: [ProjectTokenSegment] {
+    private var projectTokenBreakdown: TokenBreakdown {
         let totals = entry.conversations
             .flatMap(\.replies)
             .reduce(into: (input: 0, cached: 0, output: 0, reasoning: 0)) { result, reply in
@@ -1049,37 +978,8 @@ struct ProjectDetailView: View {
                 result.output += reply.visibleOutputTokens
                 result.reasoning += reply.reasoningTokens
             }
-        let total = max(totals.input + totals.cached + totals.output + totals.reasoning, 1)
-        return [
-            ProjectTokenSegment(
-                id: "input",
-                title: "输入",
-                value: totals.input,
-                share: Double(totals.input) / Double(total),
-                color: CodexVistaTheme.dashboardInput
-            ),
-            ProjectTokenSegment(
-                id: "cached",
-                title: "缓存输入",
-                value: totals.cached,
-                share: Double(totals.cached) / Double(total),
-                color: CodexVistaTheme.dashboardCachedInput
-            ),
-            ProjectTokenSegment(
-                id: "output",
-                title: "输出",
-                value: totals.output,
-                share: Double(totals.output) / Double(total),
-                color: CodexVistaTheme.output
-            ),
-            ProjectTokenSegment(
-                id: "reasoning",
-                title: "推理",
-                value: totals.reasoning,
-                share: Double(totals.reasoning) / Double(total),
-                color: CodexVistaTheme.reasoning
-            )
-        ]
+        return TokenBreakdown(input: totals.input, cachedInput: totals.cached,
+                              output: totals.output, reasoning: totals.reasoning)
     }
 
     private var lastActivityMilliseconds: Int64? {
@@ -1488,13 +1388,6 @@ enum ProjectDetailHoverItem {
     case reply(ProjectReplyDetailRow)
 }
 
-private struct ProjectTokenSegment: Identifiable {
-    let id: String
-    let title: String
-    let value: Int
-    let share: Double
-    let color: Color
-}
 
 private extension ProjectDailyUsage {
     var date: Date {

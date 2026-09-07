@@ -358,29 +358,17 @@ struct MenuBarPopoverView: View {
 
             quotaAndTodaySummary
 
-            tokenCompositionBar
-
-            LazyVGrid(columns: tokenMetricColumns, spacing: 0) {
-                ForEach(Array(tokenMetrics.enumerated()), id: \.element.id) { index, metric in
-                    tokenMetricCard(metric)
-                        .overlay(alignment: .trailing) {
-                            if index.isMultiple(of: 2) {
-                                Rectangle()
-                                    .fill(CodexVistaTheme.dashboardBorder)
-                                    .frame(width: 1)
-                            }
-                        }
-                        .overlay(alignment: .bottom) {
-                            if index < 2 {
-                                Rectangle()
-                                    .fill(CodexVistaTheme.dashboardBorder)
-                                    .frame(height: 1)
-                            }
-                        }
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("今日构成")
+                    Spacer()
+                    Text(store.snapshot == nil ? "暂无数据" : "按今日总量")
                 }
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+                TokenCompositionView(breakdown: store.snapshot?.breakdown,
+                                     total: store.snapshot?.todayTokens)
             }
-            .background(CodexVistaTheme.dashboardSurface, in: RoundedRectangle(cornerRadius: CodexVistaTheme.cornerRadius(10)))
-            .clipShape(RoundedRectangle(cornerRadius: CodexVistaTheme.cornerRadius(10)))
         }
         .dashboardCard(padding: 14)
     }
@@ -548,96 +536,6 @@ struct MenuBarPopoverView: View {
         quota.id == "7d" ? CodexVistaTheme.accent : CodexVistaTheme.accentBlue
     }
 
-    private var tokenMetricColumns: [GridItem] {
-        [
-            GridItem(.flexible(), spacing: 8),
-            GridItem(.flexible(), spacing: 8)
-        ]
-    }
-
-    private var tokenCompositionBar: some View {
-        let metrics = tokenMetrics
-        let hasUsage = metrics.contains { $0.value != nil }
-
-        return VStack(alignment: .leading, spacing: 5) {
-            HStack {
-                Text("今日构成")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-
-                Spacer()
-
-                Text(hasUsage ? "按今日总量" : "暂无数据")
-                    .font(.caption2)
-                    .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-            }
-
-            GeometryReader { geometry in
-                HStack(spacing: 0) {
-                    ForEach(metrics) { metric in
-                        Rectangle()
-                            .fill(metric.color)
-                            .frame(width: geometry.size.width * metric.share)
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-                .background(CodexVistaTheme.dashboardBorder)
-                .clipShape(Capsule())
-            }
-            .frame(height: 6)
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("今日 Token 构成")
-        .accessibilityValue(hasUsage ? metrics.map(\.accessibilityText).joined(separator: "，") : "暂无数据")
-    }
-
-    private var tokenMetrics: [MenuBarTokenMetric] {
-        let breakdown = store.snapshot?.breakdown
-        let total = store.snapshot?.todayTokens ?? 0
-        return [
-            MenuBarTokenMetric(id: "input", title: "输入（未缓存）", value: breakdown?.input, total: total, color: CodexVistaTheme.accent),
-            MenuBarTokenMetric(id: "cached", title: "缓存输入", value: breakdown?.cachedInput, total: total, color: CodexVistaTheme.dashboardCachedInput),
-            MenuBarTokenMetric(id: "output", title: "可见输出", value: breakdown?.output, total: total, color: CodexVistaTheme.output),
-            MenuBarTokenMetric(id: "reasoning", title: "推理", value: breakdown?.reasoning, total: total, color: CodexVistaTheme.reasoning)
-        ]
-    }
-
-    private func tokenMetricCard(_ metric: MenuBarTokenMetric) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(metric.color)
-                    .frame(width: 7, height: 7)
-
-                Text(metric.title)
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-            }
-
-            HStack(alignment: .lastTextBaseline) {
-                Text(metric.valueText)
-                    .font(CodexVistaTheme.metricFont(size: 16))
-                    .monospacedDigit()
-
-                Spacer(minLength: 8)
-
-                HStack(spacing: 3) {
-                    Text("占今日")
-                        .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-                    Text(metric.shareText)
-                        .fontWeight(.semibold)
-                        .monospacedDigit()
-                        .foregroundStyle(metric.color)
-                }
-                .font(.caption2)
-            }
-
-        }
-        .padding(10)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(metric.accessibilityText)
-    }
-
     private var availabilityText: String {
         MenuBarAvailabilityText.text(for: store.state)
     }
@@ -670,30 +568,5 @@ struct MenuBarPopoverView: View {
         case .loading, .empty, .loaded:
             CodexVistaTheme.popoverPrimary
         }
-    }
-}
-
-private struct MenuBarTokenMetric: Identifiable {
-    let id: String
-    let title: String
-    let value: Int?
-    let total: Int
-    let color: Color
-
-    var share: Double {
-        guard let value, total > 0 else { return 0 }
-        return min(max(Double(value) / Double(total), 0), 1)
-    }
-
-    var valueText: String {
-        value.map(TokenFormatter.compact) ?? "--"
-    }
-
-    var shareText: String {
-        value == nil ? "--" : TokenFormatter.percentage(share)
-    }
-
-    var accessibilityText: String {
-        "\(title) \(valueText)，占今日 \(shareText)"
     }
 }

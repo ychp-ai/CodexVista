@@ -541,15 +541,12 @@ struct DailyUsageHoverCard: View {
                 .fill(CodexVistaTheme.dashboardBorder.opacity(0.8))
                 .frame(height: 1)
 
-            HStack(spacing: 10) {
-                metric("输入", value: usage.uncachedInput, color: CodexVistaTheme.dashboardInput)
-                metric("缓存", value: usage.cachedInput, color: CodexVistaTheme.dashboardCachedInput)
-            }
-
-            HStack(spacing: 10) {
-                metric("输出", value: usage.output, color: CodexVistaTheme.output)
-                metric("推理", value: usage.reasoning, color: CodexVistaTheme.reasoning)
-            }
+            TokenCompositionView(
+                breakdown: TokenBreakdown(input: usage.uncachedInput, cachedInput: usage.cachedInput,
+                                          output: usage.output, reasoning: usage.reasoning),
+                total: usage.total, compact: true
+            )
+            .padding(.vertical, 5)
 
             if let estimatedCostUSD = usage.estimatedCostUSD {
                 Rectangle()
@@ -583,7 +580,7 @@ struct DailyUsageHoverCard: View {
                 }
             }
         }
-        .frame(width: usage.estimatedCostUSD == nil ? 174 : 210)
+        .frame(width: 250)
         .padding(.horizontal, 9)
         .padding(.vertical, 7)
         .background(
@@ -620,26 +617,4 @@ struct DailyUsageHoverCard: View {
         TokenFormatter.percentage(usage.total > 0 ? Double(value) / Double(usage.total) : 0)
     }
 
-    private func metric(_ title: String, value: Int, color: Color) -> some View {
-        HStack(spacing: 4) {
-            Circle()
-                .fill(color)
-                .frame(width: 5, height: 5)
-            Text(title)
-                .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-            Spacer(minLength: 2)
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(TokenFormatter.compact(value))
-                    .font(.system(size: 9, weight: .semibold, design: .rounded))
-                    .foregroundStyle(CodexVistaTheme.dashboardPrimaryText.opacity(0.86))
-                Text(tokenShare(value))
-                    .font(.system(size: 8, weight: .medium, design: .rounded))
-                    .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-            }
-            .monospacedDigit()
-            .minimumScaleFactor(0.72)
-        }
-        .frame(maxWidth: .infinity)
-    }
 }

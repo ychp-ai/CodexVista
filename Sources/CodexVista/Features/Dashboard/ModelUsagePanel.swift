@@ -498,20 +498,18 @@ private struct ModelTokenDetailCard: View {
         VStack(alignment: .leading, spacing: 9) {
             Text("\(entry.model) · Token 明细")
                 .font(.system(size: 12, weight: .semibold))
-            detailRow("未缓存输入", value: tokenValue(entry.uncachedInputTokens))
-            detailRow("缓存输入", value: tokenValue(entry.cachedInputTokens))
-            detailRow("可见输出", value: tokenValue(entry.visibleOutputTokens))
-            detailRow("推理输出", value: tokenValue(entry.reasoningTokens))
+            TokenCompositionView(
+                breakdown: TokenBreakdown(input: entry.uncachedInputTokens, cachedInput: entry.cachedInputTokens,
+                                          output: entry.visibleOutputTokens, reasoning: entry.reasoningTokens),
+                total: entry.totalTokens
+            )
             Divider()
             detailRow("总用量", value: TokenFormatter.compact(entry.totalTokens), emphasized: true)
         }
         .modelDetailCard()
     }
 
-    private func tokenValue(_ tokens: Int) -> String {
-        let share = entry.totalTokens > 0 ? Double(tokens) / Double(entry.totalTokens) : 0
-        return "\(TokenFormatter.compact(tokens)) · \(TokenFormatter.percentage(share))"
-    }
+
 }
 
 private struct ModelCostDetailCard: View {
@@ -524,10 +522,17 @@ private struct ModelCostDetailCard: View {
 
             if let rule = ModelPricingCatalog.rule(for: entry.model),
                let total = entry.estimatedCostUSD {
-                costRow("未缓存输入", tokens: entry.uncachedInputTokens, rate: rule.inputPerMillionUSD)
-                costRow("缓存输入", tokens: entry.cachedInputTokens, rate: rule.cachedInputPerMillionUSD)
-                costRow("可见输出", tokens: entry.visibleOutputTokens, rate: rule.outputPerMillionUSD)
-                costRow("推理输出", tokens: entry.reasoningTokens, rate: rule.outputPerMillionUSD)
+                TokenCompositionCostTable(
+                    breakdown: TokenBreakdown(input: entry.uncachedInputTokens, cachedInput: entry.cachedInputTokens,
+                                              output: entry.visibleOutputTokens, reasoning: entry.reasoningTokens),
+                    costs: rule.estimateBreakdown(
+                        uncachedInputTokens: Int64(entry.uncachedInputTokens),
+                        cachedInputTokens: Int64(entry.cachedInputTokens),
+                        visibleOutputTokens: Int64(entry.visibleOutputTokens),
+                        reasoningTokens: Int64(entry.reasoningTokens)
+                    ),
+                    total: entry.totalTokens, pricing: rule
+                )
                 Divider()
                 let usesReferencePricing = ModelPricingCatalog.usesReferencePricing(for: entry.model)
                 detailRow(
@@ -555,13 +560,7 @@ private struct ModelCostDetailCard: View {
         .modelDetailCard()
     }
 
-    private func costRow(_ title: String, tokens: Int, rate: Double) -> some View {
-        detailRow(
-            title,
-            value: "\(TokenFormatter.compact(tokens)) × \(ModelCostFormatter.rate(rate)) = "
-                + ModelCostFormatter.usd(Double(tokens) / 1_000_000 * rate)
-        )
-    }
+
 }
 
 private func detailRow(_ title: String, value: String, emphasized: Bool = false) -> some View {

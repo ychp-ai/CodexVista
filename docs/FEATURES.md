@@ -23,15 +23,15 @@
 | 触发入口 | 交互类型 | 展示内容 | 截图 |
 | --- | --- | --- | --- |
 | 点击菜单栏项目 | 状态栏弹窗 | 套餐、7 天额度、今日 Token 构成、刷新、更新、看板、设置与退出 | [截图](images/codexvista-popover.png) |
-| 悬浮周期卡模型数量；点击后固定 | 模型排行弹窗 | 当前卡片时间范围内的模型、Token、占比和 API 等值费用 | [截图](images/codexvista-model-hover-details.png) |
+| 悬浮所选周期的模型数量；点击后固定 | 模型排行弹窗 | 所选周期内的模型、Token、占比和 API 等值费用 | [截图](images/codexvista-model-hover-details.png) |
 | 悬浮模型 Token 数值 | 模型 Token 明细 | 未缓存输入、缓存输入、可见输出、推理输出和总量 | [截图](images/codexvista-model-token-hover-details.png) |
 | 悬浮模型费用 | 模型费用明细 | 四类 Token、对应单价、分项估算、总额和参考价标记 | [截图](images/codexvista-model-cost-hover-details.png) |
 | 悬浮看板趋势节点 | 图表内悬浮卡 | 日期或周期、总 Token、四类 Token 和 API 等值费用 | [截图](images/codexvista-trend-hover.png) |
 | 悬浮日历日期 | 日历弹窗 | 当日总 Token 与四类 Token 构成 | [截图](images/codexvista-calendar-day-hover.png) |
 | 悬浮热力图例 | 图例弹窗 | 颜色等级对应的 Token 区间和当月峰值 | [截图](images/codexvista-calendar-legend-hover.png) |
 | 悬浮命名空间 Skill | Skill 细分弹窗 | 细分 Skill、直接使用次数和总调用次数 | [截图](images/codexvista-skill-breakdown-hover.png) |
-| 悬浮今日任务行 | 任务用量悬浮窗 | 今日回复数、累计总耗时、模型调用、Token、Skills / Tools 次数及完整明细；移入可滚动查看 | 复用任务调用详情组件 |
-| 点击今日任务 | 独立详情窗口 | 今日 Token、耗时、项目目录和回复明细 | [截图](images/codexvista-today-task-detail.png) |
+| 点击今日任务行 | 任务用量悬浮窗 | 今日回复数、累计总耗时、模型调用、Token、Skills / Tools 次数及完整明细；Skills / Tools 明细完整铺开，仅用量窗外层滚动；鼠标移出任务行和浮窗后自动关闭 | 复用任务调用详情组件 |
+| 点击今日任务用量窗内“查看详情” | 独立详情窗口 | 今日 Token、耗时、项目目录和回复明细 | [截图](images/codexvista-today-task-detail.png) |
 | 点击项目排行 | 独立详情窗口 | 项目概览、任务、回复、趋势和关联目录 | [截图](images/codexvista-project-overview.png) |
 | 悬浮项目趋势节点 | 图表内提示卡 | 日期、Token 和 7 日占比 | [截图](images/codexvista-project-trend-hover.png) |
 | 悬浮项目任务行 | 窗口外侧悬浮面板 | 任务模型、Token、完整 Skills / Tools 和 API 等值费用 | [截图](images/codexvista-task-activity-detail.png) |
@@ -86,14 +86,19 @@
 - 汇总今日、近 7 日、近 30 日和累计 Token。
 - 在项目排行、项目详情、今日任务列表和任务详情中展示耗时；项目耗时跟随今日、7 日、30 日和累计范围，进行中的回复计至最近一次刷新。
 - 设置第一次订阅时间后，额外展示按该时刻逐月锚定的当前订阅周期 Token 和周期起止时间。
-- 每个周期卡常驻显示未缓存输入、缓存输入、可见输出和推理 Token；普通周期使用 2×2 明细矩阵，当前订阅周期使用横向明细。
+- 顶部并排展示今日、7 日、30 日、累计和可选订阅周期的总量。点击周期后，下方展示该周期的四类 Token、占比与模型入口，默认选中今日；订阅日期在选中订阅周期时与明细标题同行显示。
 - 周期统计采用平面分组与细分隔线，减少嵌套边框及阴影；浅色分类文字采用更深的主题色。
 - 工具栏支持立即刷新、打开设置和看板置顶。
-- 看板内容区最小为 920 × 618 pt；启用订阅周期时最小高度为 680 pt，标题栏和工具栏另计。调整工具栏或切换皮肤会保留用户已放大的窗口尺寸。
+- 看板内容区最小为 920 × 690 pt；启用订阅周期时保持相同最小高度，标题栏和工具栏另计。调整工具栏或切换皮肤会保留用户已放大的窗口尺寸。
+- 菜单栏、周期汇总、项目与任务详情、模型明细、日历和趋势浮层统一展示未缓存输入、缓存输入、可见输出与推理输出。双列布局突出用量，百分比使用次级文字；看板按选中周期显示一份明细，避免重复铺开。各皮肤的分类配色拉开色相差异（[全部色系对照](TOKEN_COLORS.md)），色段与图例使用同色；较宽的相邻色段增加细分隔，避免相近色融合。比例条按实际占比绘制，悬浮分项可查看完整数量；暂无数据与零用量分别显示。费用明细按类型、用量、占比、等值费用对齐分列，模型费用同时显示单价。
 - 刷新按钮集中展示刷新中、成功、部分更新和失败状态；悬浮提示包含结果说明与 `⌘R` 快捷键。
 - 支持加载、正常、空数据、过期、失败和格式不兼容等状态；首次读取本地统计时使用与真实看板布局一致的动画骨架反馈进度。
 
 ![CodexVista 详细看板，展示 7 天额度、当前订阅周期、周期汇总和用量趋势](images/codexvista-dashboard.png)
+
+![最小窗口下的 Token 构成，四类用量与占比完整显示](images/codexvista-dashboard-compact.png)
+
+![订阅周期明细的标题与日期同行显示](images/codexvista-subscription-composition.png)
 
 ![首次加载的看板骨架](images/codexvista-loading.png)
 
@@ -103,7 +108,7 @@
 
 - 汇总今天产生 Token 用量的任务，展示任务名、所属项目、状态、最后更新时间、回复数和今日 Token。
 - 进行中的任务优先；相同状态按最后更新时间倒序排列。
-- 点击任务后打开独立详情窗口，展示四类 Token 构成、回复数、项目相关目录和回复明细。
+- 点击任务行打开用量窗；鼠标悬浮不会触发展示，移出任务行与用量窗后自动关闭。点击用量窗内“查看详情”打开独立详情窗口，展示四类 Token 构成、回复数、项目相关目录和回复明细。
 - 回复明细与项目详情共用同一套行内容和窗口外调用悬浮面板，可查看每次回复的状态、耗时、模型、Token 以及完整 Skills / Tools 调用。
 
 ![CodexVista 今日任务页](images/codexvista-today-tasks.png)

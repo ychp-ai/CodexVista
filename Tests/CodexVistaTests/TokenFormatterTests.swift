@@ -79,6 +79,55 @@ private extension DashboardSnapshot {
 }
 
 final class TokenFormatterTests: XCTestCase {
+    func testTokenCompositionDistinguishesMissingDataFromZeroUsage() {
+        let missing = TokenCompositionSegment.make(breakdown: nil)
+        let empty = TokenCompositionSegment.make(
+            breakdown: TokenBreakdown(input: 0, cachedInput: 0, output: 0, reasoning: 0)
+        )
+        XCTAssertTrue(missing.allSatisfy { $0.value == nil && $0.valueText == "—" && $0.shareText == "—" })
+        XCTAssertTrue(empty.allSatisfy { $0.value == 0 && $0.share == 0 && $0.valueText != "—" })
+    }
+
+    func testTokenCompositionPreservesSmallSharesAndCallerTotal() {
+        let segments = TokenCompositionSegment.make(
+            breakdown: TokenBreakdown(input: 1, cachedInput: 999, output: 0, reasoning: 0),
+            total: 2_000
+        )
+        XCTAssertEqual(segments[0].share, 0.0005, accuracy: 0.000001)
+        XCTAssertEqual(segments[1].share, 0.4995, accuracy: 0.000001)
+        XCTAssertEqual(segments.map(\.share).reduce(0, +), 0.5, accuracy: 0.000001)
+        XCTAssertEqual(segments[2].share, 0)
+        XCTAssertEqual(segments[3].share, 0)
+    }
+
+    func testTokenCategoryColorsStayDistinctAcrossSkinsAndAppearances() {
+        // CIE Lab catches colors with different RGB values but similar visual appearance.
+        func lab(_ hex: UInt32) -> [Double] {
+            let rgb = [16, 8, 0].map { shift -> Double in
+                let value = Double((hex >> shift) & 255) / 255
+                return value <= 0.04045 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4)
+            }
+            let r = rgb[0], g = rgb[1], b = rgb[2]
+            let xyz = [(0.4124564 * r + 0.3575761 * g + 0.1804375 * b) / 0.95047,
+                       0.2126729 * r + 0.7151522 * g + 0.0721750 * b,
+                       (0.0193339 * r + 0.1191920 * g + 0.9503041 * b) / 1.08883]
+            let f = xyz.map { $0 > 0.008856 ? pow($0, 1.0 / 3.0) : 7.787 * $0 + 16.0 / 116.0 }
+            return [116 * f[1] - 16, 500 * (f[0] - f[1]), 200 * (f[1] - f[2])]
+        }
+        for skin in AppSkinPreference.allCases {
+            for dark in [false, true] {
+                let palette = CodexVistaPalette.resolve(skin: skin, dark: dark)
+                let colors = [palette.accent, palette.cached, palette.output, palette.reasoning].map(lab)
+                for i in colors.indices {
+                    for j in colors.indices where j > i {
+                        let delta = sqrt(zip(colors[i], colors[j]).reduce(0) { $0 + pow($1.0 - $1.1, 2) })
+                        XCTAssertGreaterThanOrEqual(delta, 35, "\(skin.rawValue), dark=\(dark), categories=\(i)/\(j)")
+                    }
+                }
+            }
+        }
+    }
+
     func testSkinPalettesKeepSmallTextReadableInBothAppearances() {
         func luminance(_ hex: UInt32) -> Double {
             let channels = [16, 8, 0].map { shift -> Double in
@@ -158,14 +207,14 @@ final class TokenFormatterTests: XCTestCase {
         XCTAssertEqual(ProjectReplyPresentation.modelText(""), "模型未知")
     }
 
-    func testSubscriptionOverviewPreservesAnalyticsHeightByGrowingDashboardMinimumSize() {
+    func testPeriodSelectionKeepsDashboardMinimumSizeStable() {
         XCTAssertEqual(
             DashboardWindowLayout.expandedContentSize(hasSubscriptionCycle: false),
-            CGSize(width: 920, height: 618)
+            CGSize(width: 920, height: 690)
         )
         XCTAssertEqual(
             DashboardWindowLayout.expandedContentSize(hasSubscriptionCycle: true),
-            CGSize(width: 920, height: 680)
+            CGSize(width: 920, height: 690)
         )
     }
 

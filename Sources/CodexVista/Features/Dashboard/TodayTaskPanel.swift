@@ -77,7 +77,7 @@ struct TodayTaskPanel: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text("今日任务")
                     .font(.system(size: 13, weight: .semibold))
-                Text("进行中的任务优先 · 悬浮查看用量，点击打开详情")
+                Text("进行中的任务优先 · 点击查看用量，移出自动关闭")
                     .font(.system(size: 8.5, weight: .medium))
                     .foregroundStyle(CodexVistaTheme.dashboardMutedText)
             }
@@ -163,7 +163,7 @@ struct TodayTaskPanel: View {
             aiWorktimeHelp: "今日耗时："
                 + TokenFormatter.worktime(task.aiWorktimeMilliseconds),
             tokens: TokenFormatter.compact(task.conversation.tokens),
-            action: "查看详情",
+            action: "查看用量",
             isHeader: false,
             statusColor: status.color,
             statusIcon: ProjectReplyPresentation.icon(task.status),
@@ -178,7 +178,7 @@ struct TodayTaskPanel: View {
                 + "耗时 \(TokenFormatter.worktime(task.aiWorktimeMilliseconds))，"
                 + "\(task.conversation.replies.count) 次回复"
         )
-        .accessibilityHint("悬浮查看回复数、总耗时、模型和 Skills / Tools 用量，点击打开今日任务详情窗口")
+        .accessibilityHint("点击查看回复数、总耗时、模型和 Skills / Tools 用量，可从用量窗打开任务详情")
     }
 
     private func taskColumns(
@@ -352,8 +352,8 @@ private struct TodayTaskHoverRow<Content: View>: View {
 
     var body: some View {
         Button {
-            closePopover()
-            onOpen()
+            dismissTask?.cancel()
+            isPresented = true
         } label: {
             content()
         }
@@ -378,7 +378,18 @@ private struct TodayTaskHoverRow<Content: View>: View {
                         .foregroundStyle(CodexVistaTheme.dashboardMutedText)
                         .padding(.horizontal, 16)
                         .padding(.top, 12)
-                    ProjectConversationHoverCard(conversation: task.conversation)
+                    ProjectConversationHoverCard(
+                        conversation: task.conversation,
+                        expandsActivityDetails: true
+                    )
+                    Button("查看详情") {
+                        closePopover()
+                        onOpen()
+                    }
+                    .buttonStyle(.bordered)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 12)
                 }
             }
             .frame(maxHeight: 620)
@@ -400,9 +411,9 @@ private struct TodayTaskHoverRow<Content: View>: View {
             closePopover()
             return
         }
-        if isRowHovered || isCardHovered {
-            isPresented = true
-        } else {
+        // Hover only keeps an already-open popover alive; clicking opens it.
+        guard isPresented else { return }
+        if !isRowHovered && !isCardHovered {
             // Allow the pointer to cross the gap between the row and its popover.
             dismissTask = Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(200))
@@ -598,40 +609,8 @@ struct TodayTaskDetailView: View {
 
     private var tokenBreakdownCard: some View {
         detailCard(title: "Token 用量构成", icon: "chart.bar.xaxis") {
-            VStack(alignment: .leading, spacing: 9) {
-                GeometryReader { geometry in
-                    HStack(spacing: 1) {
-                        ForEach(tokenSegments) { segment in
-                            segment.color
-                                .frame(width: segmentBarWidth(segment, available: geometry.size.width))
-                        }
-                    }
-                    .clipShape(Capsule())
-                }
-                .frame(height: 8)
-                .background(CodexVistaTheme.dashboardControlBackground, in: Capsule())
-
-                LazyVGrid(
-                    columns: [GridItem(.flexible()), GridItem(.flexible())],
-                    spacing: 7
-                ) {
-                    ForEach(tokenSegments) { segment in
-                        HStack(spacing: 7) {
-                            Circle().fill(segment.color).frame(width: 7, height: 7)
-                            Text(segment.title)
-                                .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-                            Spacer()
-                            Text(TokenFormatter.compact(segment.value))
-                                .fontWeight(.semibold)
-                                .monospacedDigit()
-                            Text(TokenFormatter.percentage(segment.share))
-                                .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-                                .monospacedDigit()
-                                .frame(width: 42, alignment: .trailing)
-                        }
-                        .font(.system(size: 9.5, weight: .medium, design: .rounded))
-                    }
-                }
+            VStack(alignment: .leading, spacing: 12) {
+                TokenCompositionView(breakdown: task.tokenBreakdown)
 
                 if task.unattributedTokens > 0 {
                     Label(
@@ -753,46 +732,4 @@ struct TodayTaskDetailView: View {
         }
     }
 
-    private var tokenSegments: [TodayTaskTokenSegment] {
-        let breakdown = task.tokenBreakdown
-        let total = max(breakdown.total, 1)
-        return [
-            TodayTaskTokenSegment(
-                id: "input", title: "输入", value: breakdown.input,
-                share: Double(breakdown.input) / Double(total),
-                color: CodexVistaTheme.dashboardInput
-            ),
-            TodayTaskTokenSegment(
-                id: "cached", title: "缓存输入", value: breakdown.cachedInput,
-                share: Double(breakdown.cachedInput) / Double(total),
-                color: CodexVistaTheme.dashboardCachedInput
-            ),
-            TodayTaskTokenSegment(
-                id: "output", title: "输出", value: breakdown.output,
-                share: Double(breakdown.output) / Double(total),
-                color: CodexVistaTheme.output
-            ),
-            TodayTaskTokenSegment(
-                id: "reasoning", title: "推理", value: breakdown.reasoning,
-                share: Double(breakdown.reasoning) / Double(total),
-                color: CodexVistaTheme.reasoning
-            )
-        ]
-    }
-
-    private func segmentBarWidth(
-        _ segment: TodayTaskTokenSegment,
-        available: CGFloat
-    ) -> CGFloat {
-        guard segment.value > 0 else { return 0 }
-        return max(3, (available - 3) * segment.share)
-    }
-}
-
-private struct TodayTaskTokenSegment: Identifiable {
-    let id: String
-    let title: String
-    let value: Int
-    let share: Double
-    let color: Color
 }

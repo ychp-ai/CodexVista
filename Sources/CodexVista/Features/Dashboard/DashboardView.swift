@@ -543,9 +543,9 @@ private struct DashboardBackdrop: View {
 }
 
 enum DashboardWindowLayout {
-    static let standardOverviewHeight: CGFloat = 238
-    static let subscriptionOverviewHeight: CGFloat = 300
-    static let baseExpandedContentSize = CGSize(width: 920, height: 618)
+    static let standardOverviewHeight: CGFloat = 310
+    static let subscriptionOverviewHeight: CGFloat = 310
+    static let baseExpandedContentSize = CGSize(width: 920, height: 690)
 
     static func overviewHeight(hasSubscriptionCycle: Bool) -> CGFloat {
         hasSubscriptionCycle ? subscriptionOverviewHeight : standardOverviewHeight
@@ -678,6 +678,7 @@ private struct DashboardContentView: View {
     @State private var selectedActivityRange = ActivityRange.defaultRange
     @State private var selectedProjectRange = ActivityRange.defaultRange
     @State private var hoveredUsageID: DailyUsage.ID?
+    @State private var selectedPeriodID = "today"
 
     private var hasSubscriptionCycle: Bool {
         snapshot.subscriptionCycle != nil
@@ -972,115 +973,83 @@ private struct DashboardContentView: View {
         .accessibilityLabel("\(quota.compactTitle) 重置 \(quota.resetText)")
     }
 
-    private var periodGridColumns: [GridItem] {
-        [
-            GridItem(.flexible(), spacing: 12),
-            GridItem(.flexible(), spacing: 12)
-        ]
+    private var selectedPeriod: PeriodUsage? {
+        snapshot.periods.first { $0.id == selectedPeriodID } ?? snapshot.periods.first
     }
 
     private var periodMetricsSection: some View {
-        VStack(spacing: 10) {
-            if let subscriptionPeriod, let subscriptionCycle = snapshot.subscriptionCycle {
-                subscriptionPeriodRow(subscriptionPeriod, cycle: subscriptionCycle)
-            }
-
-            LazyVGrid(columns: periodGridColumns, spacing: 10) {
-                ForEach(standardPeriods) { period in
-                    periodTile(period)
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(spacing: 6) {
+                ForEach(snapshot.periods) { period in
+                    periodSelector(period)
                 }
             }
+
+            if let period = selectedPeriod {
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack(alignment: .center, spacing: 12) {
+                        HStack(alignment: .firstTextBaseline, spacing: 10) {
+                            Text("\(period.title) · Token 构成")
+                                .font(CodexVistaTheme.headingFont(size: 14))
+                                .lineLimit(1)
+                            if period.id == "subscriptionCycle", let cycle = snapshot.subscriptionCycle {
+                                Text(subscriptionCycleRangeText(cycle))
+                                    .font(.system(size: 11))
+                                    .lineLimit(1)
+                                    .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                        PeriodModelUsageControl(
+                            periodTitle: period.title,
+                            periodSubtitle: period.id == "subscriptionCycle"
+                                ? snapshot.subscriptionCycle.map(subscriptionCycleRangeText) : nil,
+                            ranking: snapshot.modelUsage.ranking(forPeriodID: period.id)
+                        )
+                    }
+                    TokenCompositionView(breakdown: periodTokenBreakdown(period), total: period.total)
+                }
+                .padding(.horizontal, 12)
+            }
+            Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.top, 4)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    private var subscriptionPeriod: PeriodUsage? {
-        snapshot.periods.first { $0.id == "subscriptionCycle" }
-    }
-
-    private var standardPeriods: [PeriodUsage] {
-        snapshot.periods.filter { $0.id != "subscriptionCycle" }
-    }
-
-    private func subscriptionPeriodRow(
-        _ period: PeriodUsage,
-        cycle: SubscriptionCycle
-    ) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: "calendar.badge.checkmark")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(CodexVistaTheme.dashboardAccent)
-                .frame(width: 26, height: 26)
-                .background(
-                    CodexVistaTheme.isInk ? Color.clear : CodexVistaTheme.dashboardControlBackground,
-                    in: RoundedRectangle(cornerRadius: CodexVistaTheme.cornerRadius(8), style: .continuous)
-                )
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(period.title)
-                    .font(CodexVistaTheme.headingFont(size: 12))
+    private func periodSelector(_ period: PeriodUsage) -> some View {
+        let isSelected = selectedPeriod?.id == period.id
+        return Button {
+            selectedPeriodID = period.id
+        } label: {
+            VStack(alignment: .leading, spacing: 9) {
+                Text(period.id == "subscriptionCycle" ? "订阅周期" : period.title)
+                    .font(.system(size: 11, weight: isSelected ? .semibold : .medium))
+                    .foregroundStyle(isSelected ? CodexVistaTheme.dashboardAccent : CodexVistaTheme.dashboardMutedText)
+                Text(TokenFormatter.compact(period.total))
+                    .font(CodexVistaTheme.metricFont(size: 20))
                     .foregroundStyle(CodexVistaTheme.dashboardPrimaryText)
-                Text(subscriptionCycleRangeText(cycle))
-                    .font(.system(size: 9.5, weight: .medium))
-                    .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+                    .monospacedDigit()
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
-
-            PeriodModelUsageControl(
-                periodTitle: period.title,
-                periodSubtitle: subscriptionCycleRangeText(cycle),
-                ranking: snapshot.modelUsage.ranking(forPeriodID: period.id)
-            )
-
-            Spacer(minLength: 8)
-
-            Text(TokenFormatter.compact(period.total))
-                .font(CodexVistaTheme.metricFont(size: 20))
-                .foregroundStyle(CodexVistaTheme.dashboardPrimaryText)
-                .monospacedDigit()
-                .accessibilityLabel("Token 总量 \(period.total.formatted())")
-
-            Rectangle()
-                .fill(CodexVistaTheme.dashboardGrid)
-                .frame(width: 1, height: 28)
-                .accessibilityHidden(true)
-
-            subscriptionMetric("输入", value: period.uncachedInput, share: period.share(of: period.uncachedInput), color: CodexVistaTheme.dashboardInput)
-            subscriptionMetric("缓存", value: period.cachedInput, share: period.share(of: period.cachedInput), color: CodexVistaTheme.dashboardCachedInput)
-            subscriptionMetric("输出", value: period.visibleOutput, share: period.share(of: period.visibleOutput), color: CodexVistaTheme.output)
-            subscriptionMetric("推理", value: period.reasoning, share: period.share(of: period.reasoning), color: CodexVistaTheme.reasoning)
-        }
-        .padding(.horizontal, 12)
-        .frame(maxWidth: .infinity, minHeight: 52)
-        .modifier(CodexVistaMetricSurface())
-        .accessibilityElement(children: .contain)
-    }
-
-    private func subscriptionMetric(_ title: String, value: Int, share: Double, color: Color) -> some View {
-        VStack(alignment: .trailing, spacing: 2) {
-            HStack(spacing: 4) {
-                Circle()
-                    .fill(color)
-                    .frame(width: 5, height: 5)
-                    .accessibilityHidden(true)
-                Text(title)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 12)
+            .background(isSelected ? CodexVistaTheme.dashboardControlBackground : Color.clear,
+                        in: RoundedRectangle(cornerRadius: CodexVistaTheme.cornerRadius(10)))
+            .overlay(alignment: .bottom) {
+                if isSelected {
+                    Capsule().fill(CodexVistaTheme.dashboardAccent).frame(height: 2)
+                        .padding(.horizontal, 10)
+                }
             }
-            .font(.system(size: 9.5, weight: .medium))
-            .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-
-            Text(TokenFormatter.compact(value))
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
-                .foregroundStyle(CodexVistaTheme.dashboardPrimaryText)
-                .monospacedDigit()
-            Text(TokenFormatter.percentage(share))
-                .font(.system(size: 9, weight: .medium, design: .rounded))
-                .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-                .monospacedDigit()
+            .contentShape(Rectangle())
         }
-        .frame(minWidth: 42, alignment: .trailing)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(title) \(value.formatted())，占该周期 \(TokenFormatter.percentage(share))")
+        .buttonStyle(.plain)
+        .help("查看\(period.title) Token 构成与模型用量")
+        .accessibilityLabel("\(period.title)，总 Token \(period.total.formatted())")
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 
     private func subscriptionCycleRangeText(_ cycle: SubscriptionCycle) -> String {
@@ -1089,156 +1058,9 @@ private struct DashboardContentView: View {
         return "\(start) – \(end)"
     }
 
-    private func periodTile(_ period: PeriodUsage) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(spacing: 8) {
-                Image(systemName: periodIcon(for: period))
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(CodexVistaTheme.dashboardAccent)
-                    .frame(width: 26, height: 26)
-                    .background(
-                        CodexVistaTheme.isInk ? Color.clear : CodexVistaTheme.dashboardControlBackground,
-                        in: RoundedRectangle(cornerRadius: CodexVistaTheme.cornerRadius(8), style: .continuous)
-                    )
-                    .accessibilityHidden(true)
-
-                Text(period.title)
-                    .font(CodexVistaTheme.headingFont(size: 13))
-                    .foregroundStyle(CodexVistaTheme.dashboardPrimaryText)
-                    .lineLimit(1)
-
-                PeriodModelUsageControl(
-                    periodTitle: period.title,
-                    periodSubtitle: nil,
-                    ranking: snapshot.modelUsage.ranking(forPeriodID: period.id)
-                )
-
-                Spacer(minLength: 6)
-
-                Text(TokenFormatter.compact(period.total))
-                    .font(CodexVistaTheme.metricFont(size: 22))
-                    .foregroundStyle(CodexVistaTheme.dashboardPrimaryText)
-                    .monospacedDigit()
-                    .minimumScaleFactor(0.72)
-                    .lineLimit(1)
-                    .accessibilityLabel("Token 总量 \(period.total.formatted())")
-            }
-
-            Rectangle()
-                .fill(CodexVistaTheme.dashboardGrid)
-                .frame(height: 1)
-                .accessibilityHidden(true)
-
-            periodMetricMatrix(period)
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .modifier(CodexVistaMetricSurface())
-        .accessibilityElement(children: .contain)
-    }
-
-    private func periodMetricMatrix(_ period: PeriodUsage) -> some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 0) {
-                periodMetric(
-                    "输入",
-                    value: period.uncachedInput,
-                    share: period.share(of: period.uncachedInput),
-                    color: CodexVistaTheme.dashboardInput
-                )
-                .padding(.trailing, 10)
-
-                periodMetricVerticalDivider
-
-                periodMetric(
-                    "缓存",
-                    value: period.cachedInput,
-                    share: period.share(of: period.cachedInput),
-                    color: CodexVistaTheme.dashboardCachedInput
-                )
-                .padding(.leading, 10)
-            }
-            .frame(maxHeight: .infinity)
-
-            Rectangle()
-                .fill(CodexVistaTheme.dashboardGrid)
-                .frame(height: 1)
-                .accessibilityHidden(true)
-
-            HStack(spacing: 0) {
-                periodMetric(
-                    "输出",
-                    value: period.visibleOutput,
-                    share: period.share(of: period.visibleOutput),
-                    color: CodexVistaTheme.output
-                )
-                .padding(.trailing, 10)
-
-                periodMetricVerticalDivider
-
-                periodMetric(
-                    "推理",
-                    value: period.reasoning,
-                    share: period.share(of: period.reasoning),
-                    color: CodexVistaTheme.reasoning
-                )
-                .padding(.leading, 10)
-            }
-            .frame(maxHeight: .infinity)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private var periodMetricVerticalDivider: some View {
-        Rectangle()
-            .fill(CodexVistaTheme.dashboardGrid)
-            .frame(width: 1)
-            .padding(.vertical, 2)
-            .accessibilityHidden(true)
-    }
-
-    private func periodIcon(for period: PeriodUsage) -> String {
-        switch period.id {
-        case "today": "calendar"
-        case "sevenDays": "calendar"
-        case "thirtyDays": "calendar.badge.clock"
-        case "subscriptionCycle": "calendar.badge.checkmark"
-        default: "chart.bar.fill"
-        }
-    }
-
-    private func periodMetric(
-        _ title: String,
-        value: Int,
-        share: Double,
-        color: Color
-    ) -> some View {
-        HStack(spacing: 5) {
-            Circle()
-                .fill(color)
-                .frame(width: 5, height: 5)
-                .accessibilityHidden(true)
-            Text(title)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-            Spacer(minLength: 3)
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(TokenFormatter.compact(value))
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
-                    .foregroundStyle(CodexVistaTheme.dashboardPrimaryText)
-                Text(TokenFormatter.percentage(share))
-                    .font(.system(size: 9, weight: .medium, design: .rounded))
-                    .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-            }
-            .monospacedDigit()
-            .minimumScaleFactor(0.72)
-            .lineLimit(1)
-        }
-        .frame(maxWidth: .infinity, minHeight: 16, alignment: .leading)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(
-            "\(title) \(value.formatted())，占该周期 \(TokenFormatter.percentage(share))"
-        )
+    private func periodTokenBreakdown(_ period: PeriodUsage) -> TokenBreakdown {
+        TokenBreakdown(input: period.uncachedInput, cachedInput: period.cachedInput,
+                       output: period.visibleOutput, reasoning: period.reasoning)
     }
 
     private var selectedUsage: [DailyUsage] {

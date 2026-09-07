@@ -44,9 +44,9 @@ struct CodexVistaPalette {
         muted: 0x566876,
         accent: 0x2147A7,
         secondary: 0x2A657E,
-        cached: 0x666D91,
-        output: 0xA65D26,
-        reasoning: 0x2D756A,
+        cached: 0x963C86,
+        output: 0xA65316,
+        reasoning: 0x16705A,
         grid: 0xD8E0E7,
         selected: 0xFFFFFF,
         selectedText: 0x2147A7,
@@ -64,9 +64,9 @@ struct CodexVistaPalette {
         muted: 0xACBDCC,
         accent: 0x9BBCFF,
         secondary: 0x8AC6DA,
-        cached: 0xBBBDDF,
-        output: 0xE7B084,
-        reasoning: 0x96CCBE,
+        cached: 0xEC91D3,
+        output: 0xFFBD78,
+        reasoning: 0x65D9AB,
         grid: 0x354454,
         selected: 0x405268,
         selectedText: 0xF0F5FF,
@@ -84,9 +84,9 @@ struct CodexVistaPalette {
         muted: 0x5B686A,
         accent: 0x3B4850,
         secondary: 0x557373,
-        cached: 0x607170,
-        output: 0xA33F3B,
-        reasoning: 0x786E4A,
+        cached: 0x365FA0,
+        output: 0xAE3E30,
+        reasoning: 0x777020,
         grid: 0xD8DDD7,
         selected: 0xFAFAF5,
         selectedText: 0xA33F3B,
@@ -103,9 +103,9 @@ struct CodexVistaPalette {
         muted: 0x47645B,
         accent: 0x21664F,
         secondary: 0x426B87,
-        cached: 0x5E7288,
-        output: 0xA65C36,
-        reasoning: 0x6C6B3A,
+        cached: 0x8540A0,
+        output: 0xAC4D25,
+        reasoning: 0x275FAD,
         grid: 0xD1E1D8,
         selected: 0xFAFCF8,
         selectedText: 0x21664F,
@@ -123,9 +123,9 @@ struct CodexVistaPalette {
         muted: 0xAAC9B9,
         accent: 0x8BD1AE,
         secondary: 0x9BC9DD,
-        cached: 0xB5C4DE,
-        output: 0xE9B495,
-        reasoning: 0xCAC68C,
+        cached: 0xDE9EF5,
+        output: 0xFFB27C,
+        reasoning: 0x8CBFFF,
         grid: 0x34594C,
         selected: 0x355D4E,
         selectedText: 0xC0ECD3,
@@ -143,9 +143,9 @@ struct CodexVistaPalette {
         muted: 0x775660,
         accent: 0xA14960,
         secondary: 0x936139,
-        cached: 0x72698E,
-        output: 0x986232,
-        reasoning: 0x457773,
+        cached: 0x4C54AC,
+        output: 0x965B12,
+        reasoning: 0x146D60,
         grid: 0xE8D3CC,
         selected: 0xFFFAF4,
         selectedText: 0x963D55,
@@ -163,9 +163,9 @@ struct CodexVistaPalette {
         muted: 0xD9B8C4,
         accent: 0xEBA3B8,
         secondary: 0xE9B38B,
-        cached: 0xC7B7E6,
-        output: 0xE5BA83,
-        reasoning: 0xA6CFCC,
+        cached: 0xAEB3FF,
+        output: 0xFFD17C,
+        reasoning: 0x66DCC1,
         grid: 0x624653,
         selected: 0x704656,
         selectedText: 0xFBE0E8,
@@ -183,9 +183,9 @@ struct CodexVistaPalette {
         muted: 0xA5C4C9,
         accent: 0x65DCD3,
         secondary: 0x83BCEC,
-        cached: 0xA9B4E5,
-        output: 0xF1B783,
-        reasoning: 0xBFD49A,
+        cached: 0xD696FF,
+        output: 0xFFAC69,
+        reasoning: 0xC8E86B,
         grid: 0x2C4D54,
         selected: 0x31515A,
         selectedText: 0xA3F6EC,
@@ -203,9 +203,9 @@ struct CodexVistaPalette {
         muted: 0x50676A,
         accent: 0x356B70,
         secondary: 0x876C39,
-        cached: 0x64767D,
-        output: 0x8E6C58,
-        reasoning: 0x647861,
+        cached: 0x8047A4,
+        output: 0xAD4B26,
+        reasoning: 0x82700D,
         grid: 0xDEE8E5,
         selected: 0xFCFDFC,
         selectedText: 0x356B70,
@@ -1019,5 +1019,198 @@ extension View {
             emphasis: strong ? .strong : .standard,
             shadowOpacity: shadowOpacity
         ))
+    }
+}
+
+
+/// Shared presentation for the four non-overlapping Token categories.
+struct TokenCompositionView: View {
+    let breakdown: TokenBreakdown?
+    var total: Int? = nil
+    var compact = false
+    var showsBar = true
+
+    private var segments: [TokenCompositionSegment] {
+        TokenCompositionSegment.make(breakdown: breakdown, total: total)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: compact ? 8 : 14) {
+            if showsBar {
+                GeometryReader { geometry in
+                    HStack(spacing: 0) {
+                        ForEach(Array(segments.enumerated()), id: \.element.id) { index, segment in
+                            let width = max(0, geometry.size.width) * segment.share
+                            segment.color
+                                .frame(width: width)
+                                .overlay(alignment: .leading) {
+                                    // Separate broad neighbors without hiding genuinely tiny segments.
+                                    if index > 0, width >= 4,
+                                       geometry.size.width * segments[index - 1].share >= 4 {
+                                        Rectangle()
+                                            .fill(CodexVistaTheme.dashboardSurfaceStrong)
+                                            .frame(width: 1)
+                                    }
+                                }
+                        }
+                    }
+                    .frame(width: max(0, geometry.size.width), alignment: .leading)
+                    .background(CodexVistaTheme.dashboardControlBackground)
+                    .clipShape(Capsule())
+                }
+                .frame(height: compact ? 7 : 9)
+                .accessibilityHidden(true)
+            }
+
+            Grid(horizontalSpacing: compact ? 14 : 20, verticalSpacing: compact ? 7 : 10) {
+                GridRow {
+                    TokenCompositionMetric(segment: segments[0], compact: compact)
+                    TokenCompositionMetric(segment: segments[1], compact: compact)
+                }
+                Rectangle()
+                    .fill(CodexVistaTheme.dashboardBorder.opacity(0.6))
+                    .frame(height: 1)
+                    .gridCellColumns(2)
+                    .gridCellUnsizedAxes(.horizontal)
+                    .accessibilityHidden(true)
+                GridRow {
+                    TokenCompositionMetric(segment: segments[2], compact: compact)
+                    TokenCompositionMetric(segment: segments[3], compact: compact)
+                }
+            }
+        }
+    }
+}
+
+struct TokenCompositionSegment: Identifiable {
+    let id: String
+    let title: String
+    let value: Int?
+    let share: Double
+    let color: Color
+
+    var valueText: String { value.map(TokenFormatter.compact) ?? "—" }
+    var shareText: String { value == nil ? "—" : TokenFormatter.percentage(share) }
+    var accessibilityText: String {
+        guard let value else { return "\(title)，暂无数据" }
+        return "\(title)，\(value.formatted()) Token，占比 \(shareText)"
+    }
+
+    static func make(breakdown: TokenBreakdown?, total: Int? = nil) -> [Self] {
+        let denominator = total ?? breakdown?.total ?? 0
+        let entries: [(String, String, Int?, Color)] = [
+            ("input", "未缓存输入", breakdown?.input, CodexVistaTheme.dashboardInput),
+            ("cached", "缓存输入", breakdown?.cachedInput, CodexVistaTheme.dashboardCachedInput),
+            ("output", "可见输出", breakdown?.output, CodexVistaTheme.output),
+            ("reasoning", "推理输出", breakdown?.reasoning, CodexVistaTheme.reasoning)
+        ]
+        return entries.map { id, title, value, color in
+            Self(id: id, title: title, value: value,
+                 share: denominator > 0 ? min(max(Double(value ?? 0) / Double(denominator), 0), 1) : 0,
+                 color: color)
+        }
+    }
+}
+
+struct TokenCompositionMetric: View {
+    let segment: TokenCompositionSegment
+    var compact = false
+    var stacksPercentage = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: compact ? 3 : 5) {
+            HStack(spacing: 6) {
+                Circle().fill(segment.color).frame(width: 6, height: 6)
+                Text(segment.title)
+                    .font(.system(size: compact ? 9.5 : 10, weight: .medium))
+                    .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+                    .lineLimit(1)
+            }
+            let valueLayout = stacksPercentage
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2))
+                : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 5))
+            valueLayout {
+                Text(segment.valueText)
+                    .font(.system(size: compact ? 12 : 15, weight: .semibold, design: .rounded))
+                    .foregroundStyle(CodexVistaTheme.dashboardPrimaryText)
+                if !stacksPercentage { Spacer(minLength: 0) }
+                Text(segment.shareText)
+                    .font(.system(size: compact ? 9 : 10, weight: .medium, design: .rounded))
+                    .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+            }
+            .monospacedDigit()
+            .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .help(segment.accessibilityText)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(segment.accessibilityText)
+    }
+}
+
+struct TokenCompositionCostTable: View {
+    let breakdown: TokenBreakdown
+    let costs: ModelCostBreakdown
+    var total: Int? = nil
+    var pricing: ModelPricingRule? = nil
+
+    private var amounts: [Double] {
+        [costs.uncachedInputUSD, costs.cachedInputUSD, costs.visibleOutputUSD, costs.reasoningUSD]
+    }
+
+    var body: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
+                Text("Token 类型")
+                Spacer(minLength: 0)
+                Text("用量").frame(width: 55, alignment: .trailing)
+                Text("占比").frame(width: 40, alignment: .trailing)
+                Text("等值费用").frame(width: 58, alignment: .trailing)
+            }
+            .font(.system(size: 9, weight: .medium))
+            .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+
+            ForEach(Array(TokenCompositionSegment.make(breakdown: breakdown, total: total).enumerated()), id: \.element.id) { index, segment in
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        HStack(spacing: 5) {
+                            Circle().fill(segment.color).frame(width: 5, height: 5)
+                            Text(segment.title)
+                                .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+                        }
+                        Spacer(minLength: 0)
+                        Text(segment.valueText)
+                            .fontWeight(.semibold)
+                            .frame(width: 55, alignment: .trailing)
+                        Text(segment.shareText)
+                            .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+                            .frame(width: 40, alignment: .trailing)
+                        Text(ModelCostFormatter.usd(amounts[index]))
+                            .fontWeight(.semibold)
+                            .frame(width: 58, alignment: .trailing)
+                    }
+                    .font(.system(size: 10, design: .rounded))
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    if let pricing {
+                        let rate = index == 0 ? pricing.inputPerMillionUSD
+                            : index == 1 ? pricing.cachedInputPerMillionUSD : pricing.outputPerMillionUSD
+                        Text("单价 \(ModelCostFormatter.rate(rate)) / 百万 Token")
+                            .font(.system(size: 9))
+                            .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+                            .padding(.leading, 10)
+                    }
+                }
+                .contentShape(Rectangle())
+                .help("\(segment.accessibilityText)，API 等值费用 \(ModelCostFormatter.usd(amounts[index]))")
+                if index < 3 {
+                    Rectangle()
+                        .fill(CodexVistaTheme.dashboardBorder.opacity(0.45))
+                        .frame(height: 1)
+                        .accessibilityHidden(true)
+                }
+            }
+        }
     }
 }

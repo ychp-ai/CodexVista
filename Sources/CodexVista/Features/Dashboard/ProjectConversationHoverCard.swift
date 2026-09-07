@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ProjectConversationHoverCard: View {
     let conversation: ProjectConversationUsage
+    var expandsActivityDetails = false
 
     var body: some View {
         let totals = tokenTotals
@@ -133,25 +134,15 @@ struct ProjectConversationHoverCard: View {
 
             Divider()
 
-            ScrollView(.vertical) {
-                VStack(alignment: .leading, spacing: 14) {
-                    activitySection(
-                        title: "Skills 调用",
-                        icon: "sparkles",
-                        tint: CodexVistaTheme.dashboardInput,
-                        calls: conversation.skillCalls
-                    )
-                    activitySection(
-                        title: "Tools 调用",
-                        icon: "wrench.and.screwdriver.fill",
-                        tint: CodexVistaTheme.dashboardAccentSecondary,
-                        calls: conversation.toolCalls
-                    )
+            if expandsActivityDetails {
+                activityDetails
+            } else {
+                ScrollView(.vertical) {
+                    activityDetails
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(minHeight: 110, maxHeight: 380)
+                .scrollIndicators(.hidden)
             }
-            .frame(minHeight: 110, maxHeight: 380)
-            .scrollIndicators(.visible)
         }
         .padding(16)
         .frame(width: 410)
@@ -164,6 +155,24 @@ struct ProjectConversationHoverCard: View {
                 .stroke(CodexVistaTheme.dashboardBorder, lineWidth: 1)
         }
         .foregroundStyle(CodexVistaTheme.dashboardPrimaryText)
+    }
+
+    private var activityDetails: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            activitySection(
+                title: "Skills 调用",
+                icon: "sparkles",
+                tint: CodexVistaTheme.dashboardInput,
+                calls: conversation.skillCalls
+            )
+            activitySection(
+                title: "Tools 调用",
+                icon: "wrench.and.screwdriver.fill",
+                tint: CodexVistaTheme.dashboardAccentSecondary,
+                calls: conversation.toolCalls
+            )
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var modelText: String {
@@ -291,32 +300,11 @@ struct ProjectTokenCostEstimateCard: View {
                 }
             }
 
+            Divider()
             if let costBreakdown {
-                Divider()
-                costDetailRow(
-                    "未缓存输入",
-                    tokens: tokenBreakdown.input,
-                    cost: costBreakdown.uncachedInputUSD,
-                    tint: CodexVistaTheme.dashboardInput
-                )
-                costDetailRow(
-                    "缓存输入",
-                    tokens: tokenBreakdown.cachedInput,
-                    cost: costBreakdown.cachedInputUSD,
-                    tint: CodexVistaTheme.dashboardCachedInput
-                )
-                costDetailRow(
-                    "可见输出",
-                    tokens: tokenBreakdown.output,
-                    cost: costBreakdown.visibleOutputUSD,
-                    tint: CodexVistaTheme.output
-                )
-                costDetailRow(
-                    "推理输出",
-                    tokens: tokenBreakdown.reasoning,
-                    cost: costBreakdown.reasoningUSD,
-                    tint: CodexVistaTheme.reasoning
-                )
+                TokenCompositionCostTable(breakdown: tokenBreakdown, costs: costBreakdown)
+            } else {
+                TokenCompositionView(breakdown: tokenBreakdown, compact: true)
             }
 
             Text(costDescription)
@@ -333,38 +321,6 @@ struct ProjectTokenCostEstimateCard: View {
         )
         .accessibilityElement(children: .combine)
         .accessibilityLabel(costAccessibilityLabel)
-    }
-
-    private func costDetailRow(
-        _ title: String,
-        tokens: Int,
-        cost: Double,
-        tint: Color
-    ) -> some View {
-        HStack(spacing: 7) {
-            Circle()
-                .fill(tint)
-                .frame(width: 5, height: 5)
-            Text(title)
-                .font(.system(size: 9.5, weight: .medium))
-                .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-            Spacer(minLength: 6)
-            Text(TokenFormatter.compact(tokens))
-                .font(.system(size: 9.5, weight: .medium, design: .rounded))
-                .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-                .monospacedDigit()
-            Text(TokenFormatter.percentage(
-                tokenBreakdown.total > 0 ? Double(tokens) / Double(tokenBreakdown.total) : 0
-            ))
-                .font(.system(size: 9.5, weight: .medium, design: .rounded))
-                .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-                .frame(width: 42, alignment: .trailing)
-                .monospacedDigit()
-            Text(ModelCostFormatter.usd(cost))
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
-                .frame(width: 58, alignment: .trailing)
-                .monospacedDigit()
-        }
     }
 
     private var costDescription: String {

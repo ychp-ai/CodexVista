@@ -39,6 +39,10 @@ enum DocumentationCapture {
                         width: 1060, height: 840,
                         DashboardContentView(snapshot: snapshot, selectedRange: tab == .trend ? .thirtyDays : .sevenDays, selectedAnalyticsTab: tab))
         }
+        try capture("codexvista-dashboard-compact.png", title: "最小窗口 · Token 构成", width: 920, height: 690,
+                    DashboardContentView(snapshot: snapshot, selectedAnalyticsTab: .todayTasks))
+        try capture("codexvista-subscription-composition.png", title: "订阅周期 · Token 构成", width: 920, height: 690,
+                    DashboardContentView(snapshot: snapshot, selectedPeriodID: "subscriptionCycle"))
         let workspace = DocumentationFixture.workspaces[0]
         let conversation = workspace.conversations[0]
         let replyRow = ProjectReplyDetailRow(id: "example-row", conversationTitle: conversation.displayTitle!,
@@ -120,6 +124,16 @@ enum DocumentationCapture {
             (.cyber, true, "cyber-dark"), (.xianxia, false, "xianxia-light")]
         for (skin, dark, suffix) in themes {
             setTheme(skin, dark: dark)
+            try capture("themes/codexvista-token-colors-\(suffix).png",
+                        title: "\(skin.title) · \(dark ? "深色" : "浅色") · Token 配色", width: 430,
+                        VStack(alignment: .leading, spacing: 24) {
+                            Text("四类 Token 对照").font(.headline)
+                            TokenCompositionView(breakdown: .init(input: 25_000, cachedInput: 25_000,
+                                                                 output: 25_000, reasoning: 25_000))
+                            Text("缓存占比 95.4% · 紧凑浮层").font(.headline)
+                            TokenCompositionView(breakdown: .init(input: 4_200, cachedInput: 95_400,
+                                                                 output: 300, reasoning: 100), compact: true)
+                        }.padding(24))
             try capture("themes/codexvista-\(suffix).png", title: "\(skin.title) · \(dark ? "深色" : "浅色")",
                         width: 1060, height: 840,
                         DashboardContentView(snapshot: snapshot, selectedAnalyticsTab: .todayTasks))
