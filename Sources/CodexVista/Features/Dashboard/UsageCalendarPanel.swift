@@ -597,7 +597,7 @@ struct DailyUsageHoverCard: View {
         .shadow(color: CodexVistaTheme.dashboardShadow, radius: 7, y: 3)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
-            "\(dateText)，总 Token \(usage.total)，输入 \(usage.uncachedInput)，缓存 \(usage.cachedInput)，输出 \(usage.output)，推理 \(usage.reasoning)\(costAccessibilityDescription)"
+            "\(dateText)，总 Token \(usage.total)，输入 \(usage.uncachedInput)（\(tokenShare(usage.uncachedInput))），缓存 \(usage.cachedInput)（\(tokenShare(usage.cachedInput))），输出 \(usage.output)（\(tokenShare(usage.output))），推理 \(usage.reasoning)（\(tokenShare(usage.reasoning))）\(costAccessibilityDescription)"
         )
     }
 
@@ -616,6 +616,10 @@ struct DailyUsageHoverCard: View {
         return "，API 等值预计花费 \(cost)\(unpricedDescription)\(referenceDescription)"
     }
 
+    private func tokenShare(_ value: Int) -> String {
+        TokenFormatter.percentage(usage.total > 0 ? Double(value) / Double(usage.total) : 0)
+    }
+
     private func metric(_ title: String, value: Int, color: Color) -> some View {
         HStack(spacing: 4) {
             Circle()
@@ -625,11 +629,16 @@ struct DailyUsageHoverCard: View {
                 .font(.system(size: 9, weight: .medium))
                 .foregroundStyle(CodexVistaTheme.dashboardMutedText)
             Spacer(minLength: 2)
-            Text(TokenFormatter.compact(value))
-                .font(.system(size: 9, weight: .semibold, design: .rounded))
-                .foregroundStyle(CodexVistaTheme.dashboardPrimaryText.opacity(0.86))
-                .monospacedDigit()
-                .minimumScaleFactor(0.72)
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(TokenFormatter.compact(value))
+                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                    .foregroundStyle(CodexVistaTheme.dashboardPrimaryText.opacity(0.86))
+                Text(tokenShare(value))
+                    .font(.system(size: 8, weight: .medium, design: .rounded))
+                    .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+            }
+            .monospacedDigit()
+            .minimumScaleFactor(0.72)
         }
         .frame(maxWidth: .infinity)
     }

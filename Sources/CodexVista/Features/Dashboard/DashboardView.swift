@@ -1046,10 +1046,10 @@ private struct DashboardContentView: View {
                 .frame(width: 1, height: 28)
                 .accessibilityHidden(true)
 
-            subscriptionMetric("输入", value: period.uncachedInput, color: CodexVistaTheme.dashboardInput)
-            subscriptionMetric("缓存", value: period.cachedInput, color: CodexVistaTheme.dashboardCachedInput)
-            subscriptionMetric("输出", value: period.visibleOutput, color: CodexVistaTheme.output)
-            subscriptionMetric("推理", value: period.reasoning, color: CodexVistaTheme.reasoning)
+            subscriptionMetric("输入", value: period.uncachedInput, share: period.share(of: period.uncachedInput), color: CodexVistaTheme.dashboardInput)
+            subscriptionMetric("缓存", value: period.cachedInput, share: period.share(of: period.cachedInput), color: CodexVistaTheme.dashboardCachedInput)
+            subscriptionMetric("输出", value: period.visibleOutput, share: period.share(of: period.visibleOutput), color: CodexVistaTheme.output)
+            subscriptionMetric("推理", value: period.reasoning, share: period.share(of: period.reasoning), color: CodexVistaTheme.reasoning)
         }
         .padding(.horizontal, 12)
         .frame(maxWidth: .infinity, minHeight: 52)
@@ -1057,7 +1057,7 @@ private struct DashboardContentView: View {
         .accessibilityElement(children: .contain)
     }
 
-    private func subscriptionMetric(_ title: String, value: Int, color: Color) -> some View {
+    private func subscriptionMetric(_ title: String, value: Int, share: Double, color: Color) -> some View {
         VStack(alignment: .trailing, spacing: 2) {
             HStack(spacing: 4) {
                 Circle()
@@ -1073,10 +1073,14 @@ private struct DashboardContentView: View {
                 .font(.system(size: 10, weight: .semibold, design: .rounded))
                 .foregroundStyle(CodexVistaTheme.dashboardPrimaryText)
                 .monospacedDigit()
+            Text(TokenFormatter.percentage(share))
+                .font(.system(size: 9, weight: .medium, design: .rounded))
+                .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+                .monospacedDigit()
         }
         .frame(minWidth: 42, alignment: .trailing)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(title) \(value.formatted())")
+        .accessibilityLabel("\(title) \(value.formatted())，占该周期 \(TokenFormatter.percentage(share))")
     }
 
     private func subscriptionCycleRangeText(_ cycle: SubscriptionCycle) -> String {
@@ -1218,12 +1222,17 @@ private struct DashboardContentView: View {
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(CodexVistaTheme.dashboardMutedText)
             Spacer(minLength: 3)
-            Text(TokenFormatter.compact(value))
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
-                .foregroundStyle(CodexVistaTheme.dashboardPrimaryText)
-                .monospacedDigit()
-                .minimumScaleFactor(0.72)
-                .lineLimit(1)
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(TokenFormatter.compact(value))
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .foregroundStyle(CodexVistaTheme.dashboardPrimaryText)
+                Text(TokenFormatter.percentage(share))
+                    .font(.system(size: 9, weight: .medium, design: .rounded))
+                    .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+            }
+            .monospacedDigit()
+            .minimumScaleFactor(0.72)
+            .lineLimit(1)
         }
         .frame(maxWidth: .infinity, minHeight: 16, alignment: .leading)
         .accessibilityElement(children: .ignore)

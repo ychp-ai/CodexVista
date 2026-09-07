@@ -353,6 +353,13 @@ struct ProjectTokenCostEstimateCard: View {
                 .font(.system(size: 9.5, weight: .medium, design: .rounded))
                 .foregroundStyle(CodexVistaTheme.dashboardMutedText)
                 .monospacedDigit()
+            Text(TokenFormatter.percentage(
+                tokenBreakdown.total > 0 ? Double(tokens) / Double(tokenBreakdown.total) : 0
+            ))
+                .font(.system(size: 9.5, weight: .medium, design: .rounded))
+                .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+                .frame(width: 42, alignment: .trailing)
+                .monospacedDigit()
             Text(ModelCostFormatter.usd(cost))
                 .font(.system(size: 10, weight: .semibold, design: .rounded))
                 .frame(width: 58, alignment: .trailing)

@@ -498,14 +498,19 @@ private struct ModelTokenDetailCard: View {
         VStack(alignment: .leading, spacing: 9) {
             Text("\(entry.model) · Token 明细")
                 .font(.system(size: 12, weight: .semibold))
-            detailRow("未缓存输入", value: TokenFormatter.compact(entry.uncachedInputTokens))
-            detailRow("缓存输入", value: TokenFormatter.compact(entry.cachedInputTokens))
-            detailRow("可见输出", value: TokenFormatter.compact(entry.visibleOutputTokens))
-            detailRow("推理输出", value: TokenFormatter.compact(entry.reasoningTokens))
+            detailRow("未缓存输入", value: tokenValue(entry.uncachedInputTokens))
+            detailRow("缓存输入", value: tokenValue(entry.cachedInputTokens))
+            detailRow("可见输出", value: tokenValue(entry.visibleOutputTokens))
+            detailRow("推理输出", value: tokenValue(entry.reasoningTokens))
             Divider()
             detailRow("总用量", value: TokenFormatter.compact(entry.totalTokens), emphasized: true)
         }
         .modelDetailCard()
+    }
+
+    private func tokenValue(_ tokens: Int) -> String {
+        let share = entry.totalTokens > 0 ? Double(tokens) / Double(entry.totalTokens) : 0
+        return "\(TokenFormatter.compact(tokens)) · \(TokenFormatter.percentage(share))"
     }
 }
 
