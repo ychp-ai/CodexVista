@@ -30,6 +30,7 @@
 | 悬浮日历日期 | 日历弹窗 | 当日总 Token 与四类 Token 构成 | [截图](images/codexvista-calendar-day-hover.png) |
 | 悬浮热力图例 | 图例弹窗 | 颜色等级对应的 Token 区间和当月峰值 | [截图](images/codexvista-calendar-legend-hover.png) |
 | 悬浮命名空间 Skill | Skill 细分弹窗 | 细分 Skill、直接使用次数和总调用次数 | [截图](images/codexvista-skill-breakdown-hover.png) |
+| 悬浮今日任务行 | 任务用量悬浮窗 | 今日回复数、累计总耗时、模型调用、Token、Skills / Tools 次数及完整明细；移入可滚动查看 | 复用任务调用详情组件 |
 | 点击今日任务 | 独立详情窗口 | 今日 Token、耗时、项目目录和回复明细 | [截图](images/codexvista-today-task-detail.png) |
 | 点击项目排行 | 独立详情窗口 | 项目概览、任务、回复、趋势和关联目录 | [截图](images/codexvista-project-overview.png) |
 | 悬浮项目趋势节点 | 图表内提示卡 | 日期、Token 和 7 日占比 | [截图](images/codexvista-project-trend-hover.png) |

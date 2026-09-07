@@ -77,7 +77,7 @@ struct TodayTaskPanel: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text("今日任务")
                     .font(.system(size: 13, weight: .semibold))
-                Text("进行中的任务优先，同状态按最后更新时间倒序")
+                Text("进行中的任务优先 · 悬浮查看用量，点击打开详情")
                     .font(.system(size: 8.5, weight: .medium))
                     .foregroundStyle(CodexVistaTheme.dashboardMutedText)
             }
@@ -120,13 +120,13 @@ struct TodayTaskPanel: View {
         ScrollView(.vertical) {
             LazyVStack(spacing: 0) {
                 ForEach(tasks) { task in
-                    Button {
-                        presentTaskDetail(task)
-                    } label: {
+                    TodayTaskHoverRow(
+                        task: task,
+                        isEnabled: detailWindowController == nil,
+                        onOpen: { presentTaskDetail(task) }
+                    ) {
                         taskRow(task)
                     }
-                    .buttonStyle(.plain)
-                    .disabled(detailWindowController != nil)
 
                     if task.id != tasks.last?.id {
                         Rectangle()
@@ -178,7 +178,7 @@ struct TodayTaskPanel: View {
                 + "耗时 \(TokenFormatter.worktime(task.aiWorktimeMilliseconds))，"
                 + "\(task.conversation.replies.count) 次回复"
         )
-        .accessibilityHint("打开今日任务详情窗口")
+        .accessibilityHint("悬浮查看回复数、总耗时、模型和 Skills / Tools 用量，点击打开今日任务详情窗口")
     }
 
     private func taskColumns(
@@ -316,7 +316,9 @@ struct TodayTaskPanel: View {
 
     @MainActor
     private func presentTaskDetail(_ task: TodayTaskUsageEntry) {
-        guard detailWindowController == nil, let parentWindow = NSApp.keyWindow else { return }
+        guard detailWindowController == nil,
+              let parentWindow = NSApp.mainWindow ?? NSApp.keyWindow
+        else { return }
         selectedTaskID = task.id
         let controller = ProjectDetailWindowController(
             task: task,
@@ -334,6 +336,88 @@ struct TodayTaskPanel: View {
         detailWindowController?.dismiss()
         detailWindowController = nil
         selectedTaskID = nil
+    }
+}
+
+private struct TodayTaskHoverRow<Content: View>: View {
+    let task: TodayTaskUsageEntry
+    let isEnabled: Bool
+    let onOpen: () -> Void
+    @ViewBuilder let content: () -> Content
+
+    @State private var isPresented = false
+    @State private var isRowHovered = false
+    @State private var isCardHovered = false
+    @State private var dismissTask: Task<Void, Never>?
+
+    var body: some View {
+        Button {
+            closePopover()
+            onOpen()
+        } label: {
+            content()
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .onHover { hovering in
+            isRowHovered = hovering
+            updatePresentation()
+        }
+        .popover(
+            isPresented: Binding(
+                get: { isPresented },
+                set: { if !$0 { closePopover() } }
+            ),
+            attachmentAnchor: .rect(.bounds),
+            arrowEdge: .trailing
+        ) {
+            ScrollView(.vertical) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("今日用量 · 总耗时为今日回复累计耗时")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 12)
+                    ProjectConversationHoverCard(conversation: task.conversation)
+                }
+            }
+            .frame(maxHeight: 620)
+            .onHover { hovering in
+                isCardHovered = hovering
+                updatePresentation()
+            }
+            .onExitCommand(perform: closePopover)
+        }
+        .onChange(of: isEnabled) { _, enabled in
+            if !enabled { closePopover() }
+        }
+        .onDisappear(perform: closePopover)
+    }
+
+    private func updatePresentation() {
+        dismissTask?.cancel()
+        guard isEnabled else {
+            closePopover()
+            return
+        }
+        if isRowHovered || isCardHovered {
+            isPresented = true
+        } else {
+            // Allow the pointer to cross the gap between the row and its popover.
+            dismissTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(200))
+                guard !Task.isCancelled, !isRowHovered, !isCardHovered else { return }
+                closePopover()
+            }
+        }
+    }
+
+    private func closePopover() {
+        dismissTask?.cancel()
+        dismissTask = nil
+        isPresented = false
+        isRowHovered = false
+        isCardHovered = false
     }
 }
 
