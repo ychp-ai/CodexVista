@@ -1329,6 +1329,7 @@ final class DashboardQueryServiceTests: XCTestCase {
     func testModelPricingCatalogUsesPublishedRatesAndGPT55ReferenceFallback() throws {
         let sol = try XCTUnwrap(ModelPricingCatalog.rule(for: "gpt-5.6-sol"))
         let expectedRates: [(String, Double, Double, Double)] = [
+            ("gpt-6-astra", 10, 1, 50),
             ("gpt-5.6-sol", 4, 0.4, 20),
             ("gpt-5.6-terra", 2, 0.2, 12),
             ("gpt-5.6-luna", 0.2, 0.02, 1.2),
@@ -1350,7 +1351,8 @@ final class DashboardQueryServiceTests: XCTestCase {
         }
         XCTAssertEqual(ModelPricingCatalog.rule(for: "gpt-5.6"), sol)
         XCTAssertEqual(ModelPricingCatalog.rule(for: "  GPT-5.6-LUNA\n")?.modelID, "gpt-5.6-luna")
-        for modelID in ["gpt-5.3-codex-spark", "Unknown Model", "gpt-reserve", "gpt-5.6-unknown"] {
+        XCTAssertEqual(ModelPricingCatalog.rule(for: "  GPT-6-ASTRA\n")?.modelID, "gpt-6-astra")
+        for modelID in ["gpt-5.3-codex-spark", "Unknown Model", "gpt-reserve", "gpt-5.6-unknown", "gpt-6-unknown"] {
             XCTAssertTrue(ModelPricingCatalog.usesReferencePricing(for: modelID), modelID)
             XCTAssertEqual(ModelPricingCatalog.rule(for: modelID)?.modelID, "gpt-5.5", modelID)
         }
@@ -1373,6 +1375,51 @@ final class DashboardQueryServiceTests: XCTestCase {
             65.5,
             accuracy: 0.000_001
         )
+    }
+
+    func testAstraStandardEstimateIsConsistentAcrossRankingReplyTaskAndSubscriptionCycle() throws {
+        let now = Date(timeIntervalSince1970: 20_000)
+        let store = try makeStore()
+        try store.commit(batch(events: [usage(
+            "astra-cost",
+            at: now.addingTimeInterval(-1),
+            total: 10_000_000,
+            usage: .init(
+                uncachedInput: 1_000_000,
+                cachedInput: 2_000_000,
+                visibleOutput: 3_000_000,
+                reasoning: 4_000_000
+            ),
+            model: "gpt-6-astra",
+            turnID: "turn-astra"
+        )], quotas: []))
+
+        let snapshot = try DashboardQueryService(store: store).snapshot(
+            now: now,
+            calendar: .current,
+            firstSubscriptionDate: now.addingTimeInterval(-3_600)
+        )
+        let ranking = snapshot.modelUsage.ranking(for: .allTime)
+        // 1M × $10 + 2M × $1 + (3M + 4M) × $50 = $362.
+        // Aggregate input above 272K must not trigger a request-level multiplier.
+        XCTAssertEqual(ranking.estimatedCostUSD, 362, accuracy: 0.000_001)
+        XCTAssertEqual(ranking.referencePricedModelCount, 0)
+        let conversation = try XCTUnwrap(
+            snapshot.workspaceUsage.ranking(for: .allTime).entries.first?.conversations.first
+        )
+        let reply = try XCTUnwrap(conversation.replies.first)
+        let breakdown = try XCTUnwrap(reply.estimatedCostBreakdown)
+        XCTAssertEqual(breakdown.uncachedInputUSD, 10, accuracy: 0.000_001)
+        XCTAssertEqual(breakdown.cachedInputUSD, 2, accuracy: 0.000_001)
+        XCTAssertEqual(breakdown.visibleOutputUSD, 150, accuracy: 0.000_001)
+        XCTAssertEqual(breakdown.reasoningUSD, 200, accuracy: 0.000_001)
+        XCTAssertEqual(breakdown.totalUSD, 362, accuracy: 0.000_001)
+        XCTAssertEqual(reply.referencePricedModelCount, 0)
+        XCTAssertEqual(try XCTUnwrap(conversation.estimatedCostBreakdown).totalUSD, 362, accuracy: 0.000_001)
+        XCTAssertEqual(conversation.referencePricedModelCount, 0)
+        let cycle = try XCTUnwrap(snapshot.subscriptionCycleUsage.first)
+        XCTAssertEqual(try XCTUnwrap(cycle.estimatedCostUSD), 362, accuracy: 0.000_001)
+        XCTAssertEqual(cycle.referencePricedModelCount, 0)
     }
 
     func testModelRankingUsesMiniPublishedPriceWithoutReferenceMarker() throws {

@@ -48,6 +48,8 @@ struct ModelPricingRule: Equatable, Sendable {
         visibleOutputTokens: Int64,
         reasoningTokens: Int64
     ) -> ModelCostBreakdown {
+        // These are aggregate token totals, not one request's context length.
+        // Apply standard rates only; request-level surcharges cannot be reconstructed.
         ModelCostBreakdown(
             uncachedInputUSD: tokenCost(uncachedInputTokens, rate: inputPerMillionUSD),
             cachedInputUSD: tokenCost(cachedInputTokens, rate: cachedInputPerMillionUSD),
@@ -66,9 +68,9 @@ struct ModelPricingRule: Equatable, Sendable {
 }
 
 enum ModelPricingCatalog {
-    // Standard API text-token rates verified on 2026-09-04 against each model page:
+    // Astra verified on 2026-09-07; other standard API rates verified on 2026-09-04:
     // https://developers.openai.com/api/docs/models/<modelID>
-    static let lastVerifiedDate = "2026-09-04"
+    static let lastVerifiedDate = "2026-09-07"
     // Spark has no published API price; keep it out of publishedRules.
     static let referencePricedModelIDs = ["gpt-5.3-codex-spark"]
     static var listedModelIDs: [String] {
@@ -76,6 +78,17 @@ enum ModelPricingCatalog {
     }
 
     static let publishedRules: [ModelPricingRule] = [
+        ModelPricingRule(
+            modelID: "gpt-6-astra",
+            inputPerMillionUSD: 10,
+            cachedInputPerMillionUSD: 1,
+            outputPerMillionUSD: 50,
+            // API metadata only; Codex Astra has no long-context surcharge or cache-write fee.
+            longContextThresholdTokens: 272_000,
+            longContextInputMultiplier: 2,
+            longContextOutputMultiplier: 1.5,
+            cacheWriteMultiplier: 1.25
+        ),
         ModelPricingRule(
             modelID: "gpt-5.6-sol",
             inputPerMillionUSD: 4,

@@ -101,7 +101,9 @@ CodexVista 是第三方本地工具，并非 OpenAI 官方产品。
 
 ![外观、看板与状态栏设置：六款皮肤预览、色系、关闭行为和刘海选项](docs/images/codexvista-settings-appearance.png)
 
-模型费用说明列出本机 Codex 当前可选的 7 个模型：GPT-5.6 Sol / Terra / Luna、GPT-5.5、GPT-5.4 / Mini 和 GPT-5.3 Codex Spark。前 6 个按公开 API 价格估算，Spark 暂无公开 API 定价，明确标为 GPT-5.5 参考估算。
+模型费用说明列出 8 个模型：GPT-6 Astra、GPT-5.6 Sol / Terra / Luna、GPT-5.5、GPT-5.4 / Mini 和 GPT-5.3 Codex Spark。前 7 个按公开 API 价格估算，Spark 暂无公开 API 定价，明确标为 GPT-5.5 参考估算。
+
+GPT-6 Astra 于 2026-09-07 按[官方定价](https://developers.openai.com/api/docs/models/gpt-6-astra)收录：每百万 Token 输入 $10、缓存输入 $1、输出及推理 $50。模型排行、任务、回复和订阅周期均使用该单价重新估算历史用量。
 
 设置还提供额度提醒、来源健康状态、自动刷新、清空并重抓、软件更新、第一次订阅时间、套餐与模型费用说明。分区截图见[功能说明](docs/FEATURES.md#提醒与个性化设置)，完整内容见[设置长图](docs/images/codexvista-settings.png)。
 

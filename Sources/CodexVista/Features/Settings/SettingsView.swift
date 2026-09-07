@@ -1248,7 +1248,7 @@ private struct ModelPricingExplanationView: View {
                 Text("标准 API 价格 · 每 100 万 Token")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Text("价格核对：\(ModelPricingCatalog.lastVerifiedDate)")
+                Text("最近价格核对：\(ModelPricingCatalog.lastVerifiedDate)")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -1274,9 +1274,10 @@ private struct ModelPricingExplanationView: View {
 
             VStack(alignment: .leading, spacing: 5) {
                 Text("费用按未缓存输入、缓存输入、可见输出和推理输出分别估算，推理 Token 按输出价格计算。")
+                Text("GPT-6 Astra 使用独立公开价格，历史用量也按当前单价重新估算。")
                 Text("Spark 暂无公开 API 定价，表中 ≈ 为 GPT-5.5 参考价；codex-auto-review 等未收录独立价格的模型也按此估算。")
                 Text("gpt-5.6 是 gpt-5.6-sol 的别名，使用相同价格。")
-                Text("未计入长上下文、缓存写入和工具调用等无法从聚合数据可靠还原的附加费用。")
+                Text("未计入长上下文、缓存写入、快速模式和工具调用等无法从聚合数据可靠还原的附加费用。Codex 中的 GPT-6 Astra 不加收长上下文倍率，Codex 不收缓存写入费。")
                 Text("该结果仅用于理解 API 等值规模，不代表 Codex 订阅的实际账单。")
             }
             .font(.caption)
@@ -1286,6 +1287,11 @@ private struct ModelPricingExplanationView: View {
             Link(
                 "查看 OpenAI 官方价格",
                 destination: URL(string: "https://developers.openai.com/api/docs/pricing")!
+            )
+            .font(.caption.weight(.medium))
+            Link(
+                "查看 GPT-6 Astra 官方价格",
+                destination: URL(string: "https://developers.openai.com/api/docs/models/gpt-6-astra")!
             )
             .font(.caption.weight(.medium))
         }
