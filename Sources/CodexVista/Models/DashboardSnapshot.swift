@@ -651,11 +651,7 @@ struct QuotaSnapshot: Identifiable, Sendable {
     }
 
     func resetCountdown(now: Date = Date()) -> String? {
-        guard let seconds = resetSeconds(now: now) else { return nil }
-        if seconds < 86_400 {
-            return "\(max(1, Int(ceil(seconds / 3_600))))h"
-        }
-        return "\(max(1, Int(ceil(seconds / 86_400))))d"
+        resetInterval(now: now).map { "\($0.amount)\($0.compactUnit)" }
     }
 
     func resetDescription(now: Date = Date()) -> String? {

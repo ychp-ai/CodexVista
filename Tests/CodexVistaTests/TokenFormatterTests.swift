@@ -648,17 +648,19 @@ final class StatusItemPresentationTests: XCTestCase {
 
     func testStatusItemRendererAllocatesEnoughWidthForTwoDigitCountdownSuffix() {
         let font = NSFont.monospacedDigitSystemFont(ofSize: StatusItemLayoutMetrics.numericFontSize, weight: .semibold)
-        let requiredTextWidth = NSAttributedString(
-            string: "24h",
-            attributes: [.font: font]
-        ).size().width
         let leadingInset: CGFloat = 12
         let trailingInset: CGFloat = 5
         let availableTextWidth = StatusItemLayoutMetrics.richResetWidth
             - leadingInset
             - trailingInset
 
-        XCTAssertGreaterThanOrEqual(availableTextWidth, requiredTextWidth)
+        for countdown in ["24h", "60m"] {
+            let requiredTextWidth = NSAttributedString(
+                string: countdown,
+                attributes: [.font: font]
+            ).size().width
+            XCTAssertGreaterThanOrEqual(availableTextWidth, requiredTextWidth, countdown)
+        }
     }
 
     func testQuotaPillTextMaintainsReadableContrastAcrossEveryPaletteSurface() throws {
@@ -1022,7 +1024,7 @@ final class DashboardSnapshotTests: XCTestCase {
         )
     }
 
-    func testQuotaResetCountdownUsesOnlyCompactHourAndDayUnits() {
+    func testQuotaResetCountdownUsesCompactMinuteHourAndDayUnits() {
         let now = Date(timeIntervalSince1970: 1_000)
 
         XCTAssertEqual(
@@ -1030,7 +1032,7 @@ final class DashboardSnapshotTests: XCTestCase {
                 id: "5h", title: "5 小时", remaining: 0.8, resetText: "",
                 resetsAt: now.addingTimeInterval(30 * 60)
             ).resetCountdown(now: now),
-            "1h"
+            "30m"
         )
         XCTAssertEqual(
             QuotaSnapshot(

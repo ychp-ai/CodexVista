@@ -81,7 +81,7 @@ enum StatusItemLayoutMetrics {
     static let leadingContentWidth: CGFloat = iconRect.maxX + elementSpacing
     static let richValueWidth: CGFloat = 38
     static let richMetricWidth: CGFloat = 58
-    static let resetTextWidth: CGFloat = 24
+    static let resetTextWidth: CGFloat = 26
     static let richResetWidth: CGFloat = 12 + resetTextWidth + 5
     static let richMetricSpacing: CGFloat = 5
     static let emptyImageWidth: CGFloat = 24
