@@ -8,6 +8,8 @@ final class ProjectDetailWindowController: NSWindowController, NSWindowDelegate 
     private var detailHoverPanel: NSPanel?
     private var detailHoverHostingController: NSHostingController<AnyView>?
     private var parentCloseObserver: NSObjectProtocol?
+    private var parentClickMonitor: Any?
+    private let dismissesOnParentClick: Bool
     private var lastChildOrigin: NSPoint?
     private var isSynchronizingMove = false
     private var isDismissing = false
@@ -37,6 +39,7 @@ final class ProjectDetailWindowController: NSWindowController, NSWindowDelegate 
         self.init(
             title: "今日任务详情",
             parentWindow: parentWindow,
+            dismissesOnParentClick: true,
             onDismiss: onDismiss
         )
         update(task: task)
@@ -45,8 +48,10 @@ final class ProjectDetailWindowController: NSWindowController, NSWindowDelegate 
     private init(
         title: String,
         parentWindow: NSWindow,
+        dismissesOnParentClick: Bool = false,
         onDismiss: @escaping () -> Void
     ) {
+        self.dismissesOnParentClick = dismissesOnParentClick
         self.parentWindow = parentWindow
         self.onDismiss = onDismiss
 
@@ -112,7 +117,21 @@ final class ProjectDetailWindowController: NSWindowController, NSWindowDelegate 
         panel.setFrame(NSRect(x: origin.x, y: origin.y, width: width, height: height), display: true)
 
         parentIgnoredMouseEvents = parentWindow.ignoresMouseEvents
-        parentWindow.ignoresMouseEvents = true
+        if dismissesOnParentClick {
+            parentClickMonitor = NSEvent.addLocalMonitorForEvents(
+                matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+            ) { [weak self] event in
+                let didDismiss = MainActor.assumeIsolated {
+                    guard let self, event.window === self.parentWindow else { return false }
+                    self.dismiss()
+                    return true
+                }
+                // Consume the dismissal click so it cannot activate a control underneath.
+                return didDismiss ? nil : event
+            }
+        } else {
+            parentWindow.ignoresMouseEvents = true
+        }
         parentWindow.addChildWindow(panel, ordered: .above)
         lastChildOrigin = panel.frame.origin
         panel.makeKeyAndOrderFront(nil)
@@ -163,6 +182,11 @@ final class ProjectDetailWindowController: NSWindowController, NSWindowDelegate 
         if let parentCloseObserver {
             NotificationCenter.default.removeObserver(parentCloseObserver)
             self.parentCloseObserver = nil
+        }
+
+        if let parentClickMonitor {
+            NSEvent.removeMonitor(parentClickMonitor)
+            self.parentClickMonitor = nil
         }
 
         closeDetailHoverPanel()

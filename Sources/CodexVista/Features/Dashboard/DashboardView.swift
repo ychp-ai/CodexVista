@@ -677,7 +677,6 @@ private struct DashboardContentView: View {
     @State private var selectedAnalyticsTab = DashboardAnalyticsTab.defaultTab
     @State private var selectedActivityRange = ActivityRange.defaultRange
     @State private var selectedProjectRange = ActivityRange.defaultRange
-    @State private var hoveredUsageID: DailyUsage.ID?
     @State private var selectedPeriodID = "today"
 
     private var hasSubscriptionCycle: Bool {
@@ -1138,7 +1137,6 @@ private struct DashboardContentView: View {
                     isSelected: selectedAnalyticsTab == tab,
                     width: tab == .activity ? 102 : 82
                 ) {
-                    hoveredUsageID = nil
                     selectedAnalyticsTab = tab
                 }
             }
@@ -1238,16 +1236,6 @@ private struct DashboardContentView: View {
         return selectedTotal / selectedUsage.count
     }
 
-    private var hoveredUsage: DailyUsage? {
-        guard let hoveredUsageID else { return nil }
-        return selectedUsage.first { $0.id == hoveredUsageID }
-    }
-
-    private var trendUpperBound: Int {
-        let maximum = selectedUsage.map(\.total).max() ?? 0
-        return max(1, maximum + max(maximum / 5, 1))
-    }
-
     private var trendRow: some View {
         HStack(spacing: 14) {
             UsageCalendarPanel(usage: snapshot.dailyUsage, isEmbedded: true)
@@ -1279,110 +1267,13 @@ private struct DashboardContentView: View {
                 }
             }
 
-            Chart(selectedUsage) { item in
-                AreaMark(
-                    x: .value("日期", item.day),
-                    y: .value("Token", item.total)
-                )
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [
-                            CodexVistaTheme.dashboardAccent.opacity(0.16),
-                            CodexVistaTheme.dashboardAccentSecondary.opacity(0.05)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .interpolationMethod(.monotone)
-
-                LineMark(
-                    x: .value("日期", item.day),
-                    y: .value("Token", item.total)
-                )
-                .foregroundStyle(CodexVistaTheme.dashboardAccent)
-                .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
-                .interpolationMethod(.monotone)
-
-                PointMark(
-                    x: .value("日期", item.day),
-                    y: .value("Token", item.total)
-                )
-                .foregroundStyle(CodexVistaTheme.dashboardAccent)
-                .symbolSize(24)
-
-                if hoveredUsage?.id == item.id {
-                    RuleMark(x: .value("悬停日期", item.day))
-                        .foregroundStyle(CodexVistaTheme.dashboardAccent.opacity(0.28))
-                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
-
-                    PointMark(
-                        x: .value("悬停日期", item.day),
-                        y: .value("悬停 Token", item.total)
-                    )
-                    .foregroundStyle(Color.white)
-                    .symbolSize(86)
-
-                    PointMark(
-                        x: .value("悬停日期", item.day),
-                        y: .value("悬停 Token", item.total)
-                    )
-                    .foregroundStyle(CodexVistaTheme.dashboardAccent)
-                    .symbolSize(46)
-                    .annotation(
-                        position: Double(item.total) / Double(trendUpperBound) > 0.72 ? .bottom : .top,
-                        spacing: 8,
-                        overflowResolution: .init(
-                            x: .fit(to: .chart),
-                            y: .disabled
-                        )
-                    ) {
-                        DailyUsageHoverCard(usage: item, dateText: item.day)
-                    }
-                }
-            }
-            .chartYAxis {
-                AxisMarks(position: .leading) { value in
-                    AxisGridLine(stroke: StrokeStyle(lineWidth: 1, dash: [4, 4]))
-                        .foregroundStyle(CodexVistaTheme.dashboardGrid)
-                    AxisValueLabel {
-                        if let tokens = value.as(Int.self) {
-                            Text(TokenFormatter.compact(tokens))
-                                .font(.system(size: 10))
-                                .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-                        }
-                    }
-                }
-            }
-            .chartXAxis {
-                AxisMarks { _ in
-                    AxisTick().foregroundStyle(CodexVistaTheme.dashboardGrid)
-                    AxisValueLabel()
-                        .font(.system(size: 10))
-                        .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-                }
-            }
-            .chartXAxis(selectedRange.showsXAxis ? .visible : .hidden)
-            .chartYScale(domain: 0...trendUpperBound)
-            .chartOverlay { proxy in
-                GeometryReader { geometry in
-                    Rectangle()
-                        .fill(CodexVistaTheme.dashboardPrimaryText.opacity(0.001))
-                        .contentShape(Rectangle())
-                        .onContinuousHover { phase in
-                            switch phase {
-                            case .active(let location):
-                                updateHoveredUsage(
-                                    at: location,
-                                    proxy: proxy,
-                                    geometry: geometry
-                                )
-                            case .ended:
-                                hoveredUsageID = nil
-                            }
-                        }
-                }
-            }
+            UsageTrendChart(
+                usage: selectedUsage,
+                showsXAxis: selectedRange.showsXAxis,
+                modelNames: Array(Set((snapshot.dailyUsage + snapshot.subscriptionCycleUsage)
+                    .flatMap { $0.modelEntries.map(\.model) })).sorted()
+            )
+            .id(selectedRange)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(.bottom, 10)
         }
@@ -1392,7 +1283,6 @@ private struct DashboardContentView: View {
         HStack(spacing: 2) {
             ForEach(availableTrendRanges) { range in
                 Button {
-                    hoveredUsageID = nil
                     selectedRange = range
                 } label: {
                     Text(range.rawValue)
@@ -1424,31 +1314,6 @@ private struct DashboardContentView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("趋势时间范围")
-    }
-
-    private func updateHoveredUsage(
-        at location: CGPoint,
-        proxy: ChartProxy,
-        geometry: GeometryProxy
-    ) {
-        guard let plotFrame = proxy.plotFrame else {
-            hoveredUsageID = nil
-            return
-        }
-
-        let frame = geometry[plotFrame]
-        guard frame.contains(location) else {
-            hoveredUsageID = nil
-            return
-        }
-
-        let plotX = location.x - frame.minX
-        hoveredUsageID = selectedUsage.compactMap { item -> (id: DailyUsage.ID, distance: CGFloat)? in
-            guard let itemX = proxy.position(forX: item.day) else { return nil }
-            return (item.id, abs(itemX - plotX))
-        }
-        .min { $0.distance < $1.distance }?
-        .id
     }
 
     private func trendSummary(_ title: String, value: Int) -> some View {

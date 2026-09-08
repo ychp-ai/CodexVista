@@ -264,6 +264,10 @@ final class DashboardQueryService: @unchecked Sendable {
             totals[row.model] = aggregate
             overall = try checkedAdd(overall, row.totalTokens, context: "models.total")
         }
+        return modelRanking(from: totals, overall: overall)
+    }
+
+    private func modelRanking(from totals: [String: UsageAggregate], overall: Int64) -> ModelUsageRanking {
         guard overall > 0 else { return .empty }
 
         let ordered = totals.sorted { left, right in
@@ -995,6 +999,7 @@ final class DashboardQueryService: @unchecked Sendable {
         guard !rows.isEmpty else { return [] }
 
         var totals: [Date: UsageAggregate] = [:]
+        var rowsByDay: [Date: [StoredUsageQueryRow]] = [:]
         var earliestDay = minimumStart
         for row in rows {
             let date = Date(timeIntervalSince1970: TimeInterval(row.observedAtMilliseconds) / 1_000)
@@ -1003,6 +1008,7 @@ final class DashboardQueryService: @unchecked Sendable {
             var aggregate = totals[day, default: UsageAggregate()]
             try aggregate.add(row, context: "daily")
             totals[day] = aggregate
+            rowsByDay[day, default: []].append(row)
         }
 
         var result: [DailyUsage] = []
@@ -1013,6 +1019,7 @@ final class DashboardQueryService: @unchecked Sendable {
                 throw DashboardQueryError.invalidCalendarBoundary
             }
             let aggregate = totals[day, default: UsageAggregate()]
+            let models = try modelRanking(from: rowsByDay[day, default: []])
             result.append(DailyUsage(
                 id: String(format: "%04d-%02d-%02d", year, month, dayNumber),
                 day: String(format: "%d/%d", month, dayNumber),
@@ -1020,7 +1027,11 @@ final class DashboardQueryService: @unchecked Sendable {
                 uncachedInput: Int(clamping: aggregate.uncachedInput),
                 cachedInput: Int(clamping: aggregate.cachedInput),
                 output: Int(clamping: aggregate.visibleOutput),
-                reasoning: Int(clamping: aggregate.reasoning)
+                reasoning: Int(clamping: aggregate.reasoning),
+                estimatedCostUSD: models.estimatedCostUSD,
+                unpricedModelCount: models.unpricedModelCount,
+                referencePricedModelCount: models.referencePricedModelCount,
+                modelEntries: models.entries
             ))
             guard let next = calendar.date(byAdding: .day, value: 1, to: day), next > day else {
                 throw DashboardQueryError.invalidCalendarBoundary
@@ -1078,9 +1089,7 @@ final class DashboardQueryService: @unchecked Sendable {
                 break
             }
             let aggregate = totals[start, default: UsageAggregate()]
-            let costEstimate = subscriptionCycleCostEstimate(
-                from: modelTotals[start, default: [:]]
-            )
+            let models = modelRanking(from: modelTotals[start, default: [:]], overall: aggregate.total)
             result.append(DailyUsage(
                 id: subscriptionCycleID(for: start, calendar: calendar),
                 day: subscriptionCycleLabel(start: start, end: end, calendar: calendar),
@@ -1089,37 +1098,14 @@ final class DashboardQueryService: @unchecked Sendable {
                 cachedInput: Int(clamping: aggregate.cachedInput),
                 output: Int(clamping: aggregate.visibleOutput),
                 reasoning: Int(clamping: aggregate.reasoning),
-                estimatedCostUSD: costEstimate.usd,
-                unpricedModelCount: costEstimate.unpricedModelCount,
-                referencePricedModelCount: costEstimate.referencePricedModelCount
+                estimatedCostUSD: models.estimatedCostUSD,
+                unpricedModelCount: models.unpricedModelCount,
+                referencePricedModelCount: models.referencePricedModelCount,
+                modelEntries: models.entries
             ))
             cycleIndex += 1
         }
         return result
-    }
-
-    private func subscriptionCycleCostEstimate(
-        from modelTotals: [String: UsageAggregate]
-    ) -> (usd: Double, unpricedModelCount: Int, referencePricedModelCount: Int) {
-        var estimatedCostUSD = 0.0
-        var unpricedModelCount = 0
-        var referencePricedModelCount = 0
-        for (model, aggregate) in modelTotals {
-            guard let rule = ModelPricingCatalog.rule(for: model) else {
-                unpricedModelCount += 1
-                continue
-            }
-            estimatedCostUSD += rule.estimate(
-                uncachedInputTokens: aggregate.uncachedInput,
-                cachedInputTokens: aggregate.cachedInput,
-                visibleOutputTokens: aggregate.visibleOutput,
-                reasoningTokens: aggregate.reasoning
-            )
-            if ModelPricingCatalog.usesReferencePricing(for: model) {
-                referencePricedModelCount += 1
-            }
-        }
-        return (estimatedCostUSD, unpricedModelCount, referencePricedModelCount)
     }
 
     private func replyCostEstimate(

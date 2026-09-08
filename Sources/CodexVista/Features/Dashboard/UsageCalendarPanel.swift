@@ -194,6 +194,7 @@ struct UsageCalendarPanel: View {
 
     @State private var displayedMonth: Date
     @State private var hoveredUsageID: DailyUsage.ID?
+    @State private var hoverDismissTask: Task<Void, Never>?
     @State private var hoveredLegendLevel: Int?
 
     init(
@@ -338,11 +339,7 @@ struct UsageCalendarPanel: View {
            let item = cell.usage {
             base
                 .onHover { active in
-                    if active {
-                        hoveredUsageID = item.id
-                    } else if hoveredUsageID == item.id {
-                        hoveredUsageID = nil
-                    }
+                    updateUsageHover(active, id: item.id)
                 }
                 .popover(
                     isPresented: hoverBinding(for: item.id),
@@ -351,6 +348,7 @@ struct UsageCalendarPanel: View {
                 ) {
                     DailyUsageHoverCard(usage: item, dateText: item.id)
                         .padding(4)
+                        .onHover { updateUsageHover($0, id: item.id) }
                 }
                 .accessibilityLabel("\(item.id)，Token \(item.total)")
         } else {
@@ -425,6 +423,22 @@ struct UsageCalendarPanel: View {
 
     private func heatColor(level: Int) -> Color {
         CodexVistaTheme.dashboardAccent.opacity(CodexVistaTheme.skin.calendarOpacity(for: level))
+    }
+
+    private func updateUsageHover(_ active: Bool, id: DailyUsage.ID) {
+        hoverDismissTask?.cancel()
+        if active {
+            hoveredUsageID = id
+        } else {
+            hoverDismissTask = Task { @MainActor in
+                do {
+                    try await Task.sleep(for: .milliseconds(250))
+                } catch {
+                    return
+                }
+                if hoveredUsageID == id { hoveredUsageID = nil }
+            }
+        }
     }
 
     private func hoverBinding(for id: DailyUsage.ID) -> Binding<Bool> {
@@ -579,8 +593,26 @@ struct DailyUsageHoverCard: View {
                         .foregroundStyle(CodexVistaTheme.dashboardMutedText)
                 }
             }
+            if !usage.modelEntries.isEmpty {
+                Divider()
+                Text("模型用量 · \(usage.modelEntries.count)")
+                    .font(.system(size: 10, weight: .semibold))
+                ScrollView(.vertical) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(usage.modelEntries) { entry in
+                            modelSection(entry)
+                        }
+                    }
+                    .padding(.vertical, 5)
+                }
+                .frame(height: min(CGFloat(usage.modelEntries.count) * 150, 300))
+                .scrollIndicators(.visible)
+                Text("API 等值估算，不代表 Codex 实际账单。")
+                    .font(.system(size: 8.5))
+                    .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+            }
         }
-        .frame(width: 250)
+        .frame(width: usage.modelEntries.isEmpty ? 250 : 310)
         .padding(.horizontal, 9)
         .padding(.vertical, 7)
         .background(
@@ -592,10 +624,43 @@ struct DailyUsageHoverCard: View {
                 .stroke(CodexVistaTheme.dashboardBorder)
         }
         .shadow(color: CodexVistaTheme.dashboardShadow, radius: 7, y: 3)
-        .accessibilityElement(children: .ignore)
+        .accessibilityElement(children: .contain)
         .accessibilityLabel(
             "\(dateText)，总 Token \(usage.total)，输入 \(usage.uncachedInput)（\(tokenShare(usage.uncachedInput))），缓存 \(usage.cachedInput)（\(tokenShare(usage.cachedInput))），输出 \(usage.output)（\(tokenShare(usage.output))），推理 \(usage.reasoning)（\(tokenShare(usage.reasoning))）\(costAccessibilityDescription)"
         )
+    }
+
+    private func modelSection(_ entry: ModelUsageEntry) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(entry.model)
+                    .font(.system(size: 10, weight: .semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                Text(TokenFormatter.compact(entry.totalTokens))
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+            }
+            TokenCompositionView(
+                breakdown: TokenBreakdown(
+                    input: entry.uncachedInputTokens, cachedInput: entry.cachedInputTokens,
+                    output: entry.visibleOutputTokens, reasoning: entry.reasoningTokens
+                ),
+                total: entry.totalTokens, compact: true
+            )
+            HStack {
+                Text("API 等值预计花费")
+                Spacer()
+                Text(entry.estimatedCostUSD.map {
+                    ModelCostFormatter.usd($0, approximate: ModelPricingCatalog.usesReferencePricing(for: entry.model))
+                } ?? "未定价")
+                    .foregroundStyle(CodexVistaTheme.dashboardAccent)
+                    .monospacedDigit()
+            }
+            .font(.system(size: 9, weight: .medium))
+            .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+            Divider()
+        }
     }
 
     private var costAccessibilityDescription: String {

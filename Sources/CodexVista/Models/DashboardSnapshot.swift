@@ -821,6 +821,7 @@ struct DailyUsage: Identifiable, Sendable {
     let estimatedCostUSD: Double?
     let unpricedModelCount: Int
     let referencePricedModelCount: Int
+    let modelEntries: [ModelUsageEntry]
 
     init(
         id: String,
@@ -832,7 +833,8 @@ struct DailyUsage: Identifiable, Sendable {
         reasoning: Int = 0,
         estimatedCostUSD: Double? = nil,
         unpricedModelCount: Int = 0,
-        referencePricedModelCount: Int = 0
+        referencePricedModelCount: Int = 0,
+        modelEntries: [ModelUsageEntry] = []
     ) {
         self.id = id
         self.day = day
@@ -844,5 +846,6 @@ struct DailyUsage: Identifiable, Sendable {
         self.estimatedCostUSD = estimatedCostUSD
         self.unpricedModelCount = unpricedModelCount
         self.referencePricedModelCount = referencePricedModelCount
+        self.modelEntries = modelEntries
     }
 }

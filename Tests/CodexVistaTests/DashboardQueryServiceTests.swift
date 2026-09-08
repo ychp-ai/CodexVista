@@ -422,6 +422,85 @@ final class DashboardQueryServiceTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(cycle.estimatedCostUSD), 171.0005, accuracy: 0.000_001)
         XCTAssertEqual(cycle.unpricedModelCount, 0)
         XCTAssertEqual(cycle.referencePricedModelCount, 1)
+        XCTAssertEqual(cycle.modelEntries.count, 3)
+        XCTAssertEqual(cycle.modelEntries.reduce(0) { $0 + $1.totalTokens }, cycle.total)
+        XCTAssertEqual(cycle.modelEntries.reduce(0) { $0 + ($1.estimatedCostUSD ?? 0) },
+                       try XCTUnwrap(cycle.estimatedCostUSD), accuracy: 0.000_001)
+        XCTAssertEqual(cycle.modelEntries.first?.model, "gpt-5.6-sol")
+    }
+
+    func testModelTrendSeriesKeepsDatesAndFillsMissingModelDaysWithZero() throws {
+        let entry = ModelUsageEntry(model: "gpt-5.6-sol", totalTokens: 100,
+                                    uncachedInputTokens: 40, cachedInputTokens: 30,
+                                    visibleOutputTokens: 20, reasoningTokens: 10,
+                                    share: 1, estimatedCostUSD: 0.000772)
+        let days = [
+            DailyUsage(id: "2026-07-11", day: "7/11", total: 100, modelEntries: [entry]),
+            DailyUsage(id: "2026-07-12", day: "7/12", total: 0)
+        ]
+        let series = UsageTrendSeries.make(from: days)
+        XCTAssertEqual(series.map(\.id), ["total", "model:gpt-5.6-sol"])
+        let model = try XCTUnwrap(series.last)
+        XCTAssertEqual(model.points.map(\.id), days.map(\.id))
+        XCTAssertEqual(model.points.map(\.total), [100, 0])
+        XCTAssertEqual(model.points[0].uncachedInput, 40)
+        XCTAssertEqual(model.points[0].cachedInput, 30)
+        XCTAssertEqual(model.points[0].output, 20)
+        XCTAssertEqual(model.points[0].reasoning, 10)
+        XCTAssertEqual(model.points[0].estimatedCostUSD, entry.estimatedCostUSD)
+        XCTAssertEqual(model.points[1].estimatedCostUSD, 0)
+        XCTAssertTrue(model.points.allSatisfy { $0.modelEntries.isEmpty })
+        XCTAssertEqual(UsageTrendSeries.make(from: []).count, 1)
+    }
+
+    func testTrendHoverChoosesNearestDateThenNearestVisibleSeries() {
+        let targets = [
+            UsageTrendHitTarget(selection: .init(seriesID: "total", dayID: "day-a"), position: CGPoint(x: 10, y: 20)),
+            UsageTrendHitTarget(selection: .init(seriesID: "model:a", dayID: "day-a"), position: CGPoint(x: 10, y: 80)),
+            UsageTrendHitTarget(selection: .init(seriesID: "total", dayID: "day-b"), position: CGPoint(x: 30, y: 80))
+        ]
+        XCTAssertEqual(UsageTrendHitTarget.nearest(to: CGPoint(x: 12, y: 75), in: targets),
+                       UsageTrendSelection(seriesID: "model:a", dayID: "day-a"))
+        XCTAssertEqual(UsageTrendHitTarget.nearest(to: CGPoint(x: 12, y: 25), in: targets),
+                       UsageTrendSelection(seriesID: "total", dayID: "day-a"))
+        XCTAssertEqual(UsageTrendHitTarget.nearest(to: CGPoint(x: 29, y: 20), in: targets),
+                       UsageTrendSelection(seriesID: "total", dayID: "day-b"))
+        XCTAssertNil(UsageTrendHitTarget.nearest(to: .zero, in: []))
+    }
+
+    func testDailyModelBreakdownAggregatesRepeatedModelsAndReferenceCosts() throws {
+        let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-07-12T12:00:00Z"))
+        let store = try makeStore()
+        try store.commit(batch(events: [
+            usage("sol-a", at: now.addingTimeInterval(-60), total: 100,
+                  usage: .init(uncachedInput: 40, cachedInput: 30, visibleOutput: 20, reasoning: 10),
+                  model: "gpt-5.6-sol"),
+            usage("sol-b", at: now, total: 100,
+                  usage: .init(uncachedInput: 10, cachedInput: 20, visibleOutput: 30, reasoning: 40),
+                  model: "gpt-5.6-sol"),
+            usage("reference", at: now, total: 100, model: "unknown-daily-model"),
+            usage("previous-day", at: now.addingTimeInterval(-86_400), total: 500, model: "gpt-5.6-terra")
+        ], quotas: []))
+        let snapshot = try DashboardQueryService(store: store).snapshot(
+            now: now, calendar: CodexUsageCalendar.utc, usageCalendar: CodexUsageCalendar.utc
+        )
+        let day = try XCTUnwrap(snapshot.dailyUsage.first { $0.id == "2026-07-12" })
+        XCTAssertEqual(day.modelEntries.map(\.model), ["gpt-5.6-sol", "unknown-daily-model"])
+        let sol = try XCTUnwrap(day.modelEntries.first)
+        XCTAssertEqual(sol.totalTokens, 200)
+        XCTAssertEqual(sol.uncachedInputTokens, 50)
+        XCTAssertEqual(sol.cachedInputTokens, 50)
+        XCTAssertEqual(sol.visibleOutputTokens, 50)
+        XCTAssertEqual(sol.reasoningTokens, 50)
+        XCTAssertEqual(sol.share, 2.0 / 3.0, accuracy: 0.000_001)
+        XCTAssertEqual(try XCTUnwrap(sol.estimatedCostUSD), 0.00222, accuracy: 0.000_001)
+        XCTAssertEqual(try XCTUnwrap(day.estimatedCostUSD), 0.00272, accuracy: 0.000_001)
+        XCTAssertEqual(day.referencePricedModelCount, 1)
+        XCTAssertEqual(day.unpricedModelCount, 0)
+        XCTAssertEqual(day.modelEntries.reduce(0) { $0 + $1.totalTokens }, day.total)
+        XCTAssertTrue(snapshot.dailyUsage.filter { $0.total == 0 }.allSatisfy {
+            $0.modelEntries.isEmpty && $0.estimatedCostUSD == 0 && $0.referencePricedModelCount == 0
+        })
     }
 
     func testDailyUsageUsesCodexUTCDateWithoutChangingLocalTodayWindow() throws {

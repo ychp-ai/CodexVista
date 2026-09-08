@@ -88,7 +88,8 @@ enum DocumentationFixture {
                      uncachedInput: tokens / 5, cachedInput: tokens * 3 / 5,
                      output: tokens / 10, reasoning: tokens / 10,
                      estimatedCostUSD: ranking(total: tokens).estimatedCostUSD,
-                     referencePricedModelCount: ranking(total: tokens).referencePricedModelCount)
+                     referencePricedModelCount: tokens > 0 ? ranking(total: tokens).referencePricedModelCount : 0,
+                     modelEntries: tokens > 0 ? ranking(total: tokens).entries : [])
     }
 
     static let snapshot: DashboardSnapshot = {

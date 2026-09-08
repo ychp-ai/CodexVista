@@ -78,7 +78,7 @@ struct TodayTaskPanel: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text("今日任务")
                     .font(.system(size: 13, weight: .semibold))
-                Text("进行中的任务优先 · 点击查看用量，移出自动关闭")
+                Text("进行中的任务优先 · 点击查看详情，点击外部关闭")
                     .font(.system(size: 8.5, weight: .medium))
                     .foregroundStyle(CodexVistaTheme.dashboardMutedText)
             }
@@ -121,13 +121,13 @@ struct TodayTaskPanel: View {
         ScrollView(.vertical) {
             LazyVStack(spacing: 0) {
                 ForEach(tasks) { task in
-                    TodayTaskHoverRow(
-                        task: task,
-                        isEnabled: detailWindowController == nil,
-                        onOpen: { presentTaskDetail(task) }
-                    ) {
+                    Button {
+                        presentTaskDetail(task)
+                    } label: {
                         taskRow(task)
                     }
+                    .buttonStyle(.plain)
+                    .disabled(detailWindowController != nil)
 
                     if task.id != tasks.last?.id {
                         Rectangle()
@@ -165,7 +165,7 @@ struct TodayTaskPanel: View {
             aiWorktimeHelp: "今日耗时："
                 + TokenFormatter.worktime(task.aiWorktimeMilliseconds),
             tokens: TokenFormatter.compact(task.conversation.tokens),
-            action: "查看用量",
+            action: "查看详情",
             isHeader: false,
             statusColor: status.color,
             statusIcon: ProjectReplyPresentation.icon(task.status),
@@ -180,7 +180,7 @@ struct TodayTaskPanel: View {
                 + "耗时 \(TokenFormatter.worktime(task.aiWorktimeMilliseconds))，"
                 + "\(task.conversation.replies.count) 次回复"
         )
-        .accessibilityHint("点击查看回复数、总耗时、模型和 Skills / Tools 用量，可从用量窗打开任务详情")
+        .accessibilityHint("点击查看任务详情、用量、模型和 Skills / Tools 调用明细")
     }
 
     private func taskColumns(
@@ -341,99 +341,6 @@ struct TodayTaskPanel: View {
     }
 }
 
-private struct TodayTaskHoverRow<Content: View>: View {
-    let task: TodayTaskUsageEntry
-    let isEnabled: Bool
-    let onOpen: () -> Void
-    @ViewBuilder let content: () -> Content
-
-    @State private var isPresented = false
-    @State private var isRowHovered = false
-    @State private var isCardHovered = false
-    @State private var dismissTask: Task<Void, Never>?
-
-    var body: some View {
-        Button {
-            dismissTask?.cancel()
-            isPresented = true
-        } label: {
-            content()
-        }
-        .buttonStyle(.plain)
-        .disabled(!isEnabled)
-        .onHover { hovering in
-            isRowHovered = hovering
-            updatePresentation()
-        }
-        .popover(
-            isPresented: Binding(
-                get: { isPresented },
-                set: { if !$0 { closePopover() } }
-            ),
-            attachmentAnchor: .rect(.bounds),
-            arrowEdge: .trailing
-        ) {
-            ScrollView(.vertical) {
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("今日用量 · 总耗时为今日回复累计耗时")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-                        .padding(.horizontal, 16)
-                        .padding(.top, 12)
-                    ProjectConversationHoverCard(
-                        conversation: task.conversation,
-                        expandsActivityDetails: true
-                    )
-                    Button("查看详情") {
-                        closePopover()
-                        onOpen()
-                    }
-                    .buttonStyle(.bordered)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 12)
-                }
-            }
-            .frame(maxHeight: 620)
-            .onHover { hovering in
-                isCardHovered = hovering
-                updatePresentation()
-            }
-            .onExitCommand(perform: closePopover)
-        }
-        .onChange(of: isEnabled) { _, enabled in
-            if !enabled { closePopover() }
-        }
-        .onDisappear(perform: closePopover)
-    }
-
-    private func updatePresentation() {
-        dismissTask?.cancel()
-        guard isEnabled else {
-            closePopover()
-            return
-        }
-        // Hover only keeps an already-open popover alive; clicking opens it.
-        guard isPresented else { return }
-        if !isRowHovered && !isCardHovered {
-            // Allow the pointer to cross the gap between the row and its popover.
-            dismissTask = Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(200))
-                guard !Task.isCancelled, !isRowHovered, !isCardHovered else { return }
-                closePopover()
-            }
-        }
-    }
-
-    private func closePopover() {
-        dismissTask?.cancel()
-        dismissTask = nil
-        isPresented = false
-        isRowHovered = false
-        isCardHovered = false
-    }
-}
-
 struct TodayTaskDetailView: View {
     let task: TodayTaskUsageEntry
     let onClose: () -> Void
@@ -448,6 +355,7 @@ struct TodayTaskDetailView: View {
                     taskHeader
                     summaryCards
                     tokenBreakdownCard
+                    activityUsageCard
                     workspaceDirectoryCard
                     replyDetailCard
                 }
@@ -612,7 +520,14 @@ struct TodayTaskDetailView: View {
     private var tokenBreakdownCard: some View {
         detailCard(title: "Token 用量构成", icon: "chart.bar.xaxis") {
             VStack(alignment: .leading, spacing: 12) {
-                TokenCompositionView(breakdown: task.tokenBreakdown)
+                ProjectTokenCostEstimateCard(
+                    tokenBreakdown: task.tokenBreakdown,
+                    costBreakdown: task.conversation.estimatedCostBreakdown,
+                    unpricedModelCount: task.conversation.unpricedModelCount,
+                    referencePricedModelCount: task.conversation.referencePricedModelCount,
+                    contextName: "本任务",
+                    excludedTokenCount: task.unattributedTokens
+                )
 
                 if task.unattributedTokens > 0 {
                     Label(
@@ -621,6 +536,52 @@ struct TodayTaskDetailView: View {
                     )
                     .font(.system(size: 9, weight: .medium))
                     .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+                }
+            }
+        }
+    }
+
+    private var activityUsageCard: some View {
+        detailCard(title: "模型与 Skills / Tools 用量", icon: "cpu") {
+            VStack(alignment: .leading, spacing: 14) {
+                activityUsageSection("模型调用", calls: task.conversation.modelCalls)
+                Divider()
+                activityUsageSection("Skills 调用", calls: task.conversation.skillCalls)
+                Divider()
+                activityUsageSection("Tools 调用", calls: task.conversation.toolCalls)
+            }
+        }
+    }
+
+    private func activityUsageSection(
+        _ title: String,
+        calls: [ProjectReplyActivityCall]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(title)
+                Spacer()
+                Text("\(calls.reduce(0) { $0 + $1.count }) 次")
+                    .monospacedDigit()
+            }
+            .font(.system(size: 10.5, weight: .semibold))
+            .foregroundStyle(CodexVistaTheme.dashboardAccent)
+
+            if calls.isEmpty {
+                Text("本任务未调用")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+            } else {
+                ForEach(calls) { call in
+                    HStack(alignment: .top, spacing: 12) {
+                        Text(call.name)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 8)
+                        Text("\(call.count) 次")
+                            .monospacedDigit()
+                            .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+                    }
+                    .font(.system(size: 10.5, weight: .medium))
                 }
             }
         }

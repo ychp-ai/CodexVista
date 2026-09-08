@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A00000000000000000000055 /* UsageTrendChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000055 /* UsageTrendChart.swift */; };
 		A00000000000000000000001 /* CodexVistaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000003 /* CodexVistaApp.swift */; };
 		A00000000000000000000002 /* TokenFormatterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000004 /* TokenFormatterTests.swift */; };
 		A00000000000000000000003 /* DashboardSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000005 /* DashboardSnapshot.swift */; };
@@ -70,6 +71,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		B00000000000000000000055 /* UsageTrendChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/CodexVista/Features/Dashboard/UsageTrendChart.swift; sourceTree = SOURCE_ROOT; };
 		B00000000000000000000001 /* CodexVista.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CodexVista.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B00000000000000000000002 /* CodexVistaTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CodexVistaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B00000000000000000000003 /* CodexVistaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/CodexVista/App/CodexVistaApp.swift; sourceTree = SOURCE_ROOT; };
@@ -171,6 +173,7 @@
 				B00000000000000000000008 /* DesignSystem.swift */,
 				B00000000000000000000009 /* MenuBarPopoverView.swift */,
 				B00000000000000000000010 /* DashboardView.swift */,
+				B00000000000000000000055 /* UsageTrendChart.swift */,
 				B00000000000000000000036 /* UsageCalendarPanel.swift */,
 				B00000000000000000000037 /* ActivityRankingPanel.swift */,
 				B00000000000000000000038 /* ProjectUsagePanel.swift */,
@@ -341,6 +344,7 @@
 				A00000000000000000000006 /* DesignSystem.swift in Sources */,
 				A00000000000000000000007 /* MenuBarPopoverView.swift in Sources */,
 				A00000000000000000000008 /* DashboardView.swift in Sources */,
+				A00000000000000000000055 /* UsageTrendChart.swift in Sources */,
 				A00000000000000000000036 /* UsageCalendarPanel.swift in Sources */,
 				A00000000000000000000037 /* ActivityRankingPanel.swift in Sources */,
 				A00000000000000000000038 /* ProjectUsagePanel.swift in Sources */,
