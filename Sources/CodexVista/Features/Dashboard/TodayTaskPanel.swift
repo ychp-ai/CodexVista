@@ -61,6 +61,7 @@ struct TodayTaskPanel: View {
                 taskList
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private var header: some View {
@@ -149,6 +150,7 @@ struct TodayTaskPanel: View {
             description: Text("今天产生 Token 用量的任务会显示在这里。")
         )
         .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 
     private func taskRow(_ task: TodayTaskUsageEntry) -> some View {
