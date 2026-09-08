@@ -83,7 +83,7 @@ enum ModelPricingCatalog {
             inputPerMillionUSD: 10,
             cachedInputPerMillionUSD: 1,
             outputPerMillionUSD: 50,
-            // API metadata only; Codex Astra has no long-context surcharge or cache-write fee.
+            // API metadata only; aggregate estimates intentionally use standard read rates.
             longContextThresholdTokens: 272_000,
             longContextInputMultiplier: 2,
             longContextOutputMultiplier: 1.5,

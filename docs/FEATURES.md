@@ -2,7 +2,7 @@
 
 本文档记录 CodexVista 当前已经实现的用户功能、数据口径、刷新机制与产品边界。项目首页和快速开始见 [README](../README.md)，底层实现与维护约束见 [技术档案](TECHNICAL_ARCHIVE.md)。
 
-更新日期：2026-09-04。图片使用当前源码组件与匿名示例数据导出，覆盖全部主要界面与业务明细；顶部标注文档场景，独立悬浮卡不代表实际窗口位置。系统重建确认图使用原生 AppKit 同文案示例，未执行重建。来源与复现方式见[截图说明](images/README.md)。
+更新日期：2026-09-08。图片使用当前源码组件与匿名示例数据导出，覆盖全部主要界面与业务明细；顶部标注文档场景，独立悬浮卡不代表实际窗口位置。系统重建确认图使用原生 AppKit 同文案示例，未执行重建。来源与复现方式见[截图说明](images/README.md)。
 
 ## 功能总览
 
@@ -30,8 +30,7 @@
 | 悬浮日历日期 | 日历弹窗 | 当日总 Token 与四类 Token 构成 | [截图](images/codexvista-calendar-day-hover.png) |
 | 悬浮热力图例 | 图例弹窗 | 颜色等级对应的 Token 区间和当月峰值 | [截图](images/codexvista-calendar-legend-hover.png) |
 | 悬浮命名空间 Skill | Skill 细分弹窗 | 细分 Skill、直接使用次数和总调用次数 | [截图](images/codexvista-skill-breakdown-hover.png) |
-| 点击今日任务行 | 任务用量悬浮窗 | 今日回复数、累计总耗时、模型调用、Token、Skills / Tools 次数及完整明细；Skills / Tools 明细完整铺开，仅用量窗外层滚动；鼠标移出任务行和浮窗后自动关闭 | 复用任务调用详情组件 |
-| 点击今日任务用量窗内“查看详情” | 独立详情窗口 | 今日 Token、耗时、项目目录和回复明细 | [截图](images/codexvista-today-task-detail.png) |
+| 点击今日任务行 | 独立详情窗口 | 今日四类 Token、API 等值费用、耗时、模型、Skills / Tools 调用、项目目录和回复明细；点击主窗口时关闭，鼠标移出不会关闭 | [截图](images/codexvista-today-task-detail.png) |
 | 点击项目排行 | 独立详情窗口 | 项目概览、任务、回复、趋势和关联目录 | [截图](images/codexvista-project-overview.png) |
 | 悬浮项目趋势节点 | 图表内提示卡 | 日期、Token 和 7 日占比 | [截图](images/codexvista-project-trend-hover.png) |
 | 悬浮项目任务行 | 窗口外侧悬浮面板 | 任务模型、Token、完整 Skills / Tools 和 API 等值费用 | [截图](images/codexvista-task-activity-detail.png) |
@@ -48,7 +47,7 @@
 
 - 状态栏额度固定显示 7 天窗口。
 - 可在“已用比例”和“剩余比例”之间切换。
-- 可选择是否显示额度重置倒计时；状态栏按天显示 `xd`，不足一天按小时显示 `xh`。
+- 可选择是否显示额度重置倒计时；状态栏按天显示 `xd`，不足一天按小时显示 `xh`，不足一小时显示 `xm`。
 - 可关闭实时额度预览，仅保留 CodexVista 图标与名称。
 - 暂无有效额度时自动隐藏对应指标，避免将过期数据展示为满额。
 - 跟随所选皮肤及其有效色系；选择“跟随系统”的皮肤才随 macOS 明暗变化。
@@ -108,7 +107,7 @@
 
 - 汇总今天产生 Token 用量的任务，展示任务名、所属项目、状态、最后更新时间、回复数和今日 Token。
 - 进行中的任务优先；相同状态按最后更新时间倒序排列。
-- 点击任务行打开用量窗；鼠标悬浮不会触发展示，移出任务行与用量窗后自动关闭。点击用量窗内“查看详情”打开独立详情窗口，展示四类 Token 构成、回复数、项目相关目录和回复明细。
+- 点击任务行直接打开独立详情窗口，集中展示四类 Token 构成、API 等值费用、耗时、回复数、模型、Skills / Tools 调用、项目相关目录和回复明细。点击主窗口会关闭详情并消费该次点击，鼠标移出不会关闭。
 - 回复明细与项目详情共用同一套行内容和窗口外调用悬浮面板，可查看每次回复的状态、耗时、模型、Token 以及完整 Skills / Tools 调用。
 
 ![CodexVista 今日任务页](images/codexvista-today-tasks.png)

@@ -1277,7 +1277,7 @@ private struct ModelPricingExplanationView: View {
                 Text("GPT-6 Astra 使用独立公开价格，历史用量也按当前单价重新估算。")
                 Text("Spark 暂无公开 API 定价，表中 ≈ 为 GPT-5.5 参考价；codex-auto-review 等未收录独立价格的模型也按此估算。")
                 Text("gpt-5.6 是 gpt-5.6-sol 的别名，使用相同价格。")
-                Text("未计入长上下文、缓存写入、快速模式和工具调用等无法从聚合数据可靠还原的附加费用。Codex 中的 GPT-6 Astra 不加收长上下文倍率，Codex 不收缓存写入费。")
+                Text("未计入长上下文、缓存写入、快速模式和工具调用等无法从聚合数据可靠还原的附加费用。")
                 Text("该结果仅用于理解 API 等值规模，不代表 Codex 订阅的实际账单。")
             }
             .font(.caption)
