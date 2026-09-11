@@ -94,12 +94,15 @@ enum DocumentationFixture {
 
     static let snapshot: DashboardSnapshot = {
         let monthly = daily.reduce(0) { $0 + $1.total }
-        let totals = [("today", "今日", 1_200_000), ("sevenDays", "7 日", 1_200_000),
-                      ("thirtyDays", "30 日", monthly), ("allTime", "累计", monthly),
-                      ("subscriptionCycle", "当前订阅周期", monthly)]
-        let periods = totals.map { id, title, total in
+        let totals = [("today", "今日", 1_200_000, 8_400_000),
+                      ("sevenDays", "7 日", 1_200_000, 8_400_000),
+                      ("thirtyDays", "30 日", monthly, 31_200_000),
+                      ("allTime", "累计", monthly, 43_800_000),
+                      ("subscriptionCycle", "当前订阅周期", monthly, 31_200_000)]
+        let periods = totals.map { id, title, total, worktime in
             PeriodUsage(id: id, title: title, total: total, uncachedInput: total / 5,
-                        cachedInput: total * 3 / 5, output: total / 5, reasoning: total / 10)
+                        cachedInput: total * 3 / 5, output: total / 5, reasoning: total / 10,
+                        aiWorktimeMilliseconds: Int64(worktime))
         }
         return DashboardSnapshot(planName: "Pro 5x", updatedText: "刚刚刷新", periods: periods,
             subscriptionCycle: SubscriptionCycle(start: now.addingTimeInterval(-29 * 86_400),
