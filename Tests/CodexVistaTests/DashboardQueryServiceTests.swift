@@ -135,6 +135,83 @@ final class DashboardQueryServiceTests: XCTestCase {
         XCTAssertEqual(snapshot.modelUsage.subscriptionCycle.totalTokens, 120)
     }
 
+    func testPeriodWorktimeClipsEveryRangeAndDeduplicatesReplies() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "Asia/Shanghai"))
+        func date(_ month: Int, _ day: Int, _ hour: Int = 0) throws -> Date {
+            try XCTUnwrap(calendar.date(from: DateComponents(
+                year: 2026, month: month, day: day, hour: hour
+            )))
+        }
+        let now = try date(8, 19, 12)
+        let start = try date(7, 1)
+        let subscriptionStart = try date(8, 10, 9)
+        let store = try makeStore()
+        try store.commit(batch(
+            events: [
+                usage("closed", at: now.addingTimeInterval(-60), total: 10,
+                      threadID: "parent", turnID: "closed"),
+                usage("active", at: now.addingTimeInterval(-20), total: 10,
+                      threadID: "parent", turnID: "active"),
+                usage("active-again", at: now.addingTimeInterval(-10), total: 10,
+                      threadID: "parent", turnID: "active"),
+                usage("child", at: now.addingTimeInterval(-10), total: 10,
+                      threadID: "child", turnID: "child"),
+                usage("stale", at: now.addingTimeInterval(-10), total: 10,
+                      threadID: "stale", turnID: "stale")
+            ],
+            quotas: [],
+            stateEvents: [
+                lifecycle("start", threadID: "parent", turnID: "closed", kind: .started, at: start),
+                lifecycle("end", threadID: "parent", turnID: "closed", kind: .completed,
+                          at: now.addingTimeInterval(-60)),
+                lifecycle("active", threadID: "parent", turnID: "active", kind: .started,
+                          at: now.addingTimeInterval(-30)),
+                lifecycle("no-usage-start", threadID: "no-usage", turnID: "closed", kind: .started,
+                          at: now.addingTimeInterval(-120)),
+                lifecycle("no-usage-end", threadID: "no-usage", turnID: "closed", kind: .completed,
+                          at: now.addingTimeInterval(-60)),
+                lifecycle("stale", threadID: "stale", turnID: "stale", kind: .started, at: start),
+                lifecycle("child-start", threadID: "child", turnID: "child", kind: .started,
+                          at: now.addingTimeInterval(-20)),
+                lifecycle("child-end", threadID: "child", turnID: "child", kind: .completed,
+                          at: now.addingTimeInterval(-10)),
+                lifecycle("future", threadID: "future", turnID: "future", kind: .started,
+                          at: now.addingTimeInterval(60))
+            ],
+            sessions: [
+                session(threadID: "parent", updatedAtMilliseconds: Int64(now.timeIntervalSince1970 * 1_000),
+                        activity: .running, activeTurnID: "active"),
+                session(threadID: "child", createdAtMilliseconds:
+                    Int64(now.addingTimeInterval(-25).timeIntervalSince1970 * 1_000),
+                        updatedAtMilliseconds: Int64(now.timeIntervalSince1970 * 1_000))
+            ]
+        ))
+        let snapshot = try DashboardQueryService(store: store).snapshot(
+            now: now,
+            calendar: calendar,
+            firstSubscriptionDate: subscriptionStart,
+            parentThreadIDsByChildThreadID: ["child": "parent"]
+        )
+        let expectedStarts: [String: Date] = [
+            "today": try date(8, 19),
+            "sevenDays": try date(8, 13),
+            "thirtyDays": try date(7, 21),
+            "subscriptionCycle": subscriptionStart,
+            "allTime": start
+        ]
+        XCTAssertEqual(snapshot.periods.count, 5)
+        for period in snapshot.periods {
+            let lowerBound = try XCTUnwrap(expectedStarts[period.id])
+            XCTAssertEqual(period.total, 50)
+            XCTAssertEqual(period.aiWorktimeMilliseconds,
+                           Int64(now.timeIntervalSince(lowerBound) * 1_000) - 30_000,
+                           period.id)
+        }
+        let empty = try DashboardQueryService(store: makeStore()).snapshot(now: now, calendar: calendar)
+        XCTAssertTrue(empty.periods.allSatisfy { $0.aiWorktimeMilliseconds == 0 })
+    }
+
     func testWorkspaceUsageAggregatesAIWorktimeByRangeAndClampsLifecycle() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
@@ -214,6 +291,10 @@ final class DashboardQueryServiceTests: XCTestCase {
             snapshot.workspaceUsage.thirtyDays,
             snapshot.workspaceUsage.allTime
         ]
+        XCTAssertEqual(
+            snapshot.periods.map(\.aiWorktimeMilliseconds),
+            [3_900_000, 3_900_000, 3_900_000, 5_100_000]
+        )
         XCTAssertEqual(
             rankings.map(\.totalAIWorktimeMilliseconds),
             [3_900_000, 3_900_000, 3_900_000, 5_100_000]
@@ -1300,24 +1381,32 @@ final class DashboardQueryServiceTests: XCTestCase {
             ]
         ))
 
-        let entry = try XCTUnwrap(
-            DashboardQueryService(store: store)
-                .snapshot(
-                    now: now,
-                    calendar: .current,
-                    threadTitlesByThreadID: [
-                        "visible-thread": "可见任务",
-                        "guardian-thread": "命令权限检查"
-                    ],
-                    parentThreadIDsByChildThreadID: [
-                        "guardian-thread": "visible-thread"
-                    ]
-                )
-                .workspaceUsage
-                .ranking(for: .allTime)
-                .entries
-                .first
+        let snapshot = try DashboardQueryService(store: store).snapshot(
+            now: now,
+            calendar: CodexUsageCalendar.utc,
+            firstSubscriptionDate: now.addingTimeInterval(-3_600),
+            threadTitlesByThreadID: [
+                "visible-thread": "可见任务",
+                "guardian-thread": "命令权限检查"
+            ],
+            parentThreadIDsByChildThreadID: ["guardian-thread": "visible-thread"]
         )
+        let entry = try XCTUnwrap(snapshot.workspaceUsage.allTime.entries.first)
+        XCTAssertEqual(snapshot.periods.count, 5)
+        for period in snapshot.periods {
+            XCTAssertEqual(period.total, 100)
+            XCTAssertEqual(period.aiWorktimeMilliseconds, 10_000, period.id)
+        }
+        for (periodID, range) in [
+            ("today", ActivityRange.today), ("sevenDays", .sevenDays),
+            ("thirtyDays", .thirtyDays), ("allTime", .allTime)
+        ] {
+            XCTAssertEqual(
+                snapshot.periods.first { $0.id == periodID }?.aiWorktimeMilliseconds,
+                snapshot.workspaceUsage.ranking(for: range).totalAIWorktimeMilliseconds,
+                periodID
+            )
+        }
         let projectEntry = try XCTUnwrap(entry.projects.first)
 
         XCTAssertEqual(entry.tokens, 100, "Internal checks still contribute to actual usage")
@@ -1924,7 +2013,7 @@ final class DashboardQueryServiceTests: XCTestCase {
         XCTAssertEqual(Set(entry.projects.map(\.name)), ["new-chat", "expectant-father"])
     }
 
-    func testInferredWorkspaceRemainsSeparateFromConfirmedSingletonWorkspace() throws {
+    func testInferredWorkspaceMergesIntoConfirmedDirectory() throws {
         let now = Date(timeIntervalSince1970: 20_000)
         let project = ProjectIdentity(id: "expectant-path", name: "expectant-father")
         let inferred = try XCTUnwrap(WorkspaceIdentity.inferFromProject(project))
@@ -1946,10 +2035,39 @@ final class DashboardQueryServiceTests: XCTestCase {
         let ranking = try DashboardQueryService(store: store).snapshot(now: now, calendar: .current)
             .workspaceUsage.ranking(for: .allTime)
 
-        XCTAssertEqual(ranking.workspaceCount, 2)
-        XCTAssertEqual(ranking.entries.map(\.name), ["expectant-father", "expectant-father"])
-        XCTAssertEqual(ranking.entries.map(\.isInferred), [true, false])
-        XCTAssertNotEqual(ranking.entries[0].id, ranking.entries[1].id)
+        XCTAssertEqual(ranking.workspaceCount, 1)
+        XCTAssertEqual(ranking.entries.first?.id, confirmed.id)
+        XCTAssertEqual(ranking.entries.first?.tokens, 100)
+        XCTAssertEqual(ranking.entries.first?.isInferred, false)
+        XCTAssertEqual(ranking.entries.first?.conversations.count, 2)
+    }
+
+    func testInferredDirectoryUsesRenamedConfigurationAndKeepsOtherPathsSeparate() throws {
+        let now = Date(timeIntervalSince1970: 20_000)
+        let project = ProjectIdentity(id: "original-path", name: "same-name")
+        let other = ProjectIdentity(id: "different-path", name: "same-name")
+        let inferred = try XCTUnwrap(WorkspaceIdentity.inferFromProject(project))
+        let otherInferred = try XCTUnwrap(WorkspaceIdentity.inferFromProject(other))
+        let store = try makeStore()
+        try store.upsertWorkspaceConfiguration(StoredWorkspaceConfiguration(
+            id: "configured-project", name: "Renamed project",
+            directories: [WorkspaceDirectory(id: project.id, name: project.name)],
+            updatedAtMilliseconds: 1
+        ), matchingWorkspaceIDs: [], isCurrent: true)
+        try store.commit(batch(events: [
+            usage("original", at: now.addingTimeInterval(-2), total: 70,
+                  project: project, workspace: inferred, threadID: "first-thread"),
+            usage("other", at: now.addingTimeInterval(-1), total: 30,
+                  project: other, workspace: otherInferred, threadID: "second-thread")
+        ], quotas: []))
+        let snapshot = try DashboardQueryService(store: store).snapshot(now: now, calendar: .current)
+        for range in [ActivityRange.today, .sevenDays, .thirtyDays, .allTime] {
+            let ranking = snapshot.workspaceUsage.ranking(for: range)
+            XCTAssertEqual(ranking.workspaceCount, 2)
+            XCTAssertEqual(ranking.entries.map(\.name), ["Renamed project", "same-name"])
+            XCTAssertTrue(ranking.entries.allSatisfy { !$0.isInferred })
+            XCTAssertEqual(ranking.totalTokens, 100)
+        }
     }
 
     func testBuildsActivityRankingsForTodaySevenThirtyAndAllTimeLocalDayBoundaries() throws {

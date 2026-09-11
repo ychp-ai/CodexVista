@@ -592,6 +592,7 @@ struct PeriodUsage: Identifiable, Sendable {
     let cachedInput: Int
     let output: Int
     let reasoning: Int
+    var aiWorktimeMilliseconds: Int64 = 0
 
     var visibleOutput: Int { max(0, output - reasoning) }
 

@@ -166,11 +166,11 @@ actor CodexImporter {
                         discoveredWorkspaces.append(identity)
                         matchingWorkspaceIDs.insert(identity.id)
                     }
-                    if let pathIdentity = WorkspaceIdentity.resolve(rootPaths: roots) {
+                    if let pathIdentity = WorkspaceIdentity.resolve(rootPaths: projectRootPaths(roots)) {
                         matchingWorkspaceIDs.insert(pathIdentity.id)
                     }
                 }
-                let paths = Set(metadata.rootPaths.compactMap { path -> String? in
+                let paths = Set(projectRootPaths(metadata.rootPaths).compactMap { path -> String? in
                     let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !trimmed.isEmpty else { return nil }
                     return URL(fileURLWithPath: trimmed).standardizedFileURL.path
@@ -987,12 +987,29 @@ actor CodexImporter {
         raw == "cli" ? .cli : .unknown
     }
 
+    // Only Codex's dated, per-task visualization output roots are auxiliary.
+    // UUID-named business directories and real multi-root projects remain intact.
+    private func projectRootPaths(_ paths: [String]) -> [String] {
+        let base = rootURL.appending(path: "visualizations").standardizedFileURL.path + "/"
+        return paths.filter { rawPath in
+            let path = URL(fileURLWithPath: rawPath.trimmingCharacters(in: .whitespacesAndNewlines))
+                .standardizedFileURL.path
+            guard path.hasPrefix(base) else { return true }
+            let parts = path.dropFirst(base.count).split(separator: "/")
+            guard parts.count == 4,
+                  parts[0].count == 4, parts[1].count == 2, parts[2].count == 2,
+                  parts.prefix(3).allSatisfy({ $0.allSatisfy(\.isNumber) }),
+                  UUID(uuidString: String(parts[3])) != nil else { return true }
+            return false
+        }
+    }
+
     private func resolvedWorkspace(
         rootPaths: [String]?,
         project: ProjectIdentity?,
         preferredName: String? = nil
     ) -> WorkspaceIdentity? {
-        let normalizedRoots = Array(Set((rootPaths ?? []).compactMap { rawPath -> String? in
+        let normalizedRoots = Array(Set(projectRootPaths(rootPaths ?? []).compactMap { rawPath -> String? in
             let trimmed = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return nil }
             return URL(fileURLWithPath: trimmed).standardizedFileURL.path
@@ -1035,11 +1052,11 @@ actor CodexImporter {
         var configurationIDsByPathIdentity: [String: Set<String>] = [:]
         for metadata in inventory.workspaceMetadata {
             for roots in metadata.historicalRootPaths {
-                guard let identity = WorkspaceIdentity.resolve(rootPaths: roots) else { continue }
+                guard let identity = WorkspaceIdentity.resolve(rootPaths: projectRootPaths(roots)) else { continue }
                 configurationIDsByPathIdentity[identity.id, default: []].insert(metadata.configurationID)
             }
         }
-        guard !configurationIDsByPathIdentity.isEmpty else { return }
+        let existingAliases = try store.workspaceAliases()
         let metadataSignature = fingerprint(configurationIDsByPathIdentity.map { key, values in
             key + ":" + values.sorted().joined(separator: ",")
         }.sorted().joined(separator: "|"))
@@ -1054,6 +1071,7 @@ actor CodexImporter {
             var threadID: String?
             var turnID: String?
             var pathIdentity: String?
+            var cleanedWorkspace: WorkspaceIdentity?
             var recoveredByConfiguration: [String: Set<String>] = [:]
             for line in batch.lines {
                 guard let envelope = try? JSONDecoder().decode(WorkspaceBindingEnvelope.self, from: line.data) else {
@@ -1064,17 +1082,30 @@ actor CodexImporter {
                     threadID = envelope.payload.id
                     turnID = nil
                     pathIdentity = nil
+                    cleanedWorkspace = nil
                 case "turn_context":
                     turnID = envelope.payload.turnID
-                    pathIdentity = WorkspaceIdentity.resolve(rootPaths: envelope.payload.workspaceRoots)?.id
+                    let roots = envelope.payload.workspaceRoots ?? []
+                    let cleanedRoots = projectRootPaths(roots)
+                    pathIdentity = WorkspaceIdentity.resolve(rootPaths: cleanedRoots)?.id
+                    cleanedWorkspace = cleanedRoots.count < roots.count
+                        ? resolvedWorkspace(rootPaths: cleanedRoots, project: nil) : nil
                 case "event_msg" where envelope.payload.type == "token_count":
-                    guard let pathIdentity,
-                          let configurationIDs = configurationIDsByPathIdentity[pathIdentity],
-                          configurationIDs.count == 1,
-                          let configurationID = configurationIDs.first else { continue }
                     for usage in usageByOffset[line.endOffset] ?? []
                     where usage.threadID == threadID && usage.turnID == turnID {
-                        recoveredByConfiguration[configurationID, default: []].insert(usage.workspaceID)
+                        if let cleanedWorkspace, cleanedWorkspace.id != usage.workspaceID,
+                           existingAliases[usage.workspaceID] == nil {
+                            try store.upsertWorkspaceCatalog([cleanedWorkspace])
+                            try store.setWorkspaceAlias(
+                                sourceWorkspaceID: usage.workspaceID,
+                                targetWorkspaceID: cleanedWorkspace.id
+                            )
+                        }
+                        if let pathIdentity,
+                           let configurationIDs = configurationIDsByPathIdentity[pathIdentity],
+                           configurationIDs.count == 1, let configurationID = configurationIDs.first {
+                            recoveredByConfiguration[configurationID, default: []].insert(usage.workspaceID)
+                        }
                     }
                 default:
                     break

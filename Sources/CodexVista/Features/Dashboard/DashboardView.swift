@@ -1031,6 +1031,12 @@ private struct DashboardContentView: View {
                     .monospacedDigit()
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
+                Text(TokenFormatter.compactWorktime(period.aiWorktimeMilliseconds))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 10)
@@ -1046,8 +1052,8 @@ private struct DashboardContentView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help("查看\(period.title) Token 构成与模型用量")
-        .accessibilityLabel("\(period.title)，总 Token \(period.total.formatted())")
+        .help("\(period.title)回复累计耗时：\(TokenFormatter.worktime(period.aiWorktimeMilliseconds))；点击查看 Token 构成与模型用量")
+        .accessibilityLabel("\(period.title)，总 Token \(period.total.formatted())，耗时 \(TokenFormatter.worktime(period.aiWorktimeMilliseconds))")
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
     }
 

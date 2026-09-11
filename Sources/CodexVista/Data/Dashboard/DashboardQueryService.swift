@@ -221,6 +221,34 @@ final class DashboardQueryService: @unchecked Sendable {
                 activityRows: allActivityRows
             )
         )
+        var worktimeByPeriodID: [String: Int64] = [
+            "today": workspaceUsage.today.totalAIWorktimeMilliseconds,
+            "sevenDays": workspaceUsage.sevenDays.totalAIWorktimeMilliseconds,
+            "thirtyDays": workspaceUsage.thirtyDays.totalAIWorktimeMilliseconds,
+            "allTime": workspaceUsage.allTime.totalAIWorktimeMilliseconds
+        ]
+        if let subscriptionCycle {
+            let cycleStart = milliseconds(for: subscriptionCycle.start)
+            let subscriptionRanking = try workspaceRanking(
+                from: subscriptionRows,
+                trendRows: [],
+                trendDayStarts: [],
+                calendar: calendar,
+                sessionLastMessageTimes: sessionLastMessageTimes,
+                threadTitlesByThreadID: threadTitlesByThreadID,
+                replyAttribution: replyAttribution,
+                turnLifecycleFacts: turnLifecycleFacts,
+                worktimeFromMilliseconds: cycleStart,
+                worktimeToMilliseconds: nowMilliseconds,
+                workspaceAliases: workspaceAliases,
+                workspaceConfigurations: workspaceConfigurations,
+                activityRows: []
+            )
+            worktimeByPeriodID["subscriptionCycle"] = subscriptionRanking.totalAIWorktimeMilliseconds
+        }
+        for index in periods.indices {
+            periods[index].aiWorktimeMilliseconds = worktimeByPeriodID[periods[index].id] ?? 0
+        }
         let modelUsage = ModelUsageSnapshot(
             today: try modelRanking(from: todayRows),
             sevenDays: try modelRanking(from: sevenDayRows),
@@ -684,7 +712,45 @@ final class DashboardQueryService: @unchecked Sendable {
             graph.merge(sourceWorkspaceID: sourceID, into: targetID)
         }
         let aliases = graph.canonicalAliases()
-        return resolvedKeys.mapValues { aliases[$0] ?? $0 }
+        var result = resolvedKeys.mapValues { aliases[$0] ?? $0 }
+        var confirmedByPath: [String: Set<WorkspaceUsageKey>] = [:]
+        var confirmedByRepository: [String: Set<WorkspaceUsageKey>] = [:]
+        for row in rows where !row.workspace.isInferred {
+            guard let target = result[WorkspaceUsageKey(identity: row.workspace)],
+                  target.id != WorkspaceIdentity.unknown.id else { continue }
+            confirmedByPath[row.project.id, default: []].insert(target)
+            if let repositoryID = row.project.repositoryID {
+                confirmedByRepository[repositoryID, default: []].insert(target)
+            }
+        }
+        for row in rows where row.workspace.isInferred {
+            let source = WorkspaceUsageKey(identity: row.workspace)
+            guard explicitAliases[source.id] == nil else { continue }
+            let configured = configurations.values.filter {
+                $0.directories.contains { $0.id == row.project.id }
+            }
+            let singleton = configured.filter { $0.directories.count == 1 }
+            let preferred = singleton.isEmpty ? configured : singleton
+            let candidates: Set<WorkspaceUsageKey>
+            if !preferred.isEmpty {
+                candidates = Set(preferred.map { WorkspaceUsageKey(identity: $0.identity) })
+            } else if let paths = confirmedByPath[row.project.id], !paths.isEmpty {
+                candidates = paths
+            } else if let repositoryID = row.project.repositoryID {
+                candidates = confirmedByRepository[repositoryID] ?? []
+            } else {
+                candidates = []
+            }
+            if candidates.count == 1, let target = candidates.first {
+                result[source] = target
+            } else {
+                // Without an unambiguous owner, display the working directory itself.
+                result[source] = WorkspaceUsageKey(identity: WorkspaceIdentity(
+                    id: row.workspace.id, name: row.project.name, rootCount: 1
+                ))
+            }
+        }
+        return result
     }
 
     private func resolvedWorkspaceAliasTarget(

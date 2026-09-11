@@ -3,6 +3,63 @@ import XCTest
 @testable import CodexVista
 
 final class CodexImporterTests: XCTestCase {
+    func testVisualizationRootsMergeHistoricalUsageWithoutChangingTokensOrCheckpoint() async throws {
+        let fixture = try CodexFixture.make(events: [.sessionCLI])
+        let root = "/synthetic/business"
+        let output = fixture.codexRoot.appending(path:
+            "visualizations/2026/09/02/00000000-0000-4000-8000-000000000001").path
+        try fixture.append(.turnInWorkspace(model: "gpt-synthetic", roots: [root, output]))
+        try fixture.append(.token(input: 100, cached: 40, output: 20, reasoning: 5, plan: "plus"))
+        let store = try UsageStore(databaseURL: fixture.databaseURL)
+        let initial = await CodexImporter(rootURL: fixture.codexRoot, store: store).refresh(scope: .history)
+        XCTAssertTrue(initial.isSuccessful)
+        let clean = try XCTUnwrap(store.usageEvents().first?.workspace)
+        XCTAssertEqual(clean.name, "business")
+        XCTAssertEqual(clean.rootCount, 1)
+        let fileID = try XCTUnwrap(initial.discoveredFileIDs?.first)
+        let offset = try store.fileCheckpoint(fileID: fileID)?.committedOffset
+
+        // Recreate the identity saved by older versions, retaining original event evidence.
+        let legacy = try XCTUnwrap(WorkspaceIdentity.resolve(rootPaths: [root, output]))
+        let database = try SQLiteDatabase(url: fixture.databaseURL)
+        try database.execute(sql:
+            "UPDATE usage_events SET workspace_id = ?, workspace_name = ?, workspace_root_count = 2",
+            bindings: [.text(legacy.id), .text(legacy.name)])
+        let restarted = CodexImporter(rootURL: fixture.codexRoot, store: store)
+        let repaired = await restarted.refresh(scope: .foreground)
+        XCTAssertTrue(repaired.isSuccessful)
+        XCTAssertEqual(try store.workspaceAliases()[legacy.id], clean.id)
+        XCTAssertEqual(try store.fileCheckpoint(fileID: fileID)?.committedOffset, offset)
+        XCTAssertEqual(try store.usageEvents().first?.workspace, legacy)
+
+        try fixture.append(.turnInWorkspace(model: "gpt-synthetic", roots: [root]))
+        try fixture.append(.token(input: 200, cached: 80, output: 40, reasoning: 10, plan: "plus", second: 6))
+        let refreshed = await restarted.refresh(scope: .history)
+        XCTAssertTrue(refreshed.isSuccessful)
+        let ranking = try DashboardQueryService(store: store)
+            .snapshot(now: Date(timeIntervalSince1970: 2_000_000_000), calendar: .current).workspaceUsage.allTime
+        XCTAssertEqual(ranking.workspaceCount, 1)
+        XCTAssertEqual(ranking.entries.first?.name, "business")
+        XCTAssertEqual(ranking.totalTokens, 240)
+        let rebuilt = await restarted.rebuildFromLocalData()
+        XCTAssertTrue(rebuilt.isSuccessful)
+        XCTAssertEqual(try store.totalUsage(), 240)
+        XCTAssertTrue(try store.usageEvents().allSatisfy { $0.workspace == clean })
+    }
+
+    func testVisualizationFilteringPreservesBusinessUUIDDirectoriesAndMultipleRoots() async throws {
+        let fixture = try CodexFixture.make(events: [.sessionCLI])
+        let roots = ["/synthetic/business", "/synthetic/00000000-0000-4000-8000-000000000001"]
+        let output = fixture.codexRoot.appending(path:
+            "visualizations/2026/09/02/00000000-0000-4000-8000-000000000002").path
+        try fixture.append(.turnInWorkspace(model: "gpt-synthetic", roots: roots + [output]))
+        try fixture.append(.token(input: 100, cached: 40, output: 20, reasoning: 5, plan: "plus"))
+        let store = try UsageStore(databaseURL: fixture.databaseURL)
+        let result = await CodexImporter(rootURL: fixture.codexRoot, store: store).refresh(scope: .history)
+        XCTAssertTrue(result.isSuccessful)
+        XCTAssertEqual(try store.usageEvents().first?.workspace, WorkspaceIdentity.resolve(rootPaths: roots))
+    }
+
     func testRefreshBindsHistoricalUsageAfterRepositoryIdentityChanges() async throws {
         let roots = ["/synthetic/public-project", "/synthetic/private-project"]
         let fixture = try CodexFixture.make(events: [
