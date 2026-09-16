@@ -2,7 +2,7 @@
 
 本文档记录 CodexVista 当前已经实现的用户功能、数据口径、刷新机制与产品边界。项目首页和快速开始见 [README](../README.md)，底层实现与维护约束见 [技术档案](TECHNICAL_ARCHIVE.md)。
 
-更新日期：2026-09-08。图片使用当前源码组件与匿名示例数据导出，覆盖全部主要界面与业务明细；顶部标注文档场景，独立悬浮卡不代表实际窗口位置。系统重建确认图使用原生 AppKit 同文案示例，未执行重建。来源与复现方式见[截图说明](images/README.md)。
+更新日期：2026-09-16。图片使用当前源码组件与匿名示例数据导出，覆盖全部主要界面与业务明细；顶部标注文档场景，独立悬浮卡不代表实际窗口位置。系统重建确认图使用原生 AppKit 同文案示例，未执行重建。来源与复现方式见[截图说明](images/README.md)。
 
 ## 功能总览
 
@@ -26,8 +26,8 @@
 | 悬浮所选周期的模型数量；点击后固定 | 模型排行弹窗 | 所选周期内的模型、Token、占比和 API 等值费用 | [截图](images/codexvista-model-hover-details.png) |
 | 悬浮模型 Token 数值 | 模型 Token 明细 | 未缓存输入、缓存输入、可见输出、推理输出和总量 | [截图](images/codexvista-model-token-hover-details.png) |
 | 悬浮模型费用 | 模型费用明细 | 四类 Token、对应单价、分项估算、总额和参考价标记 | [截图](images/codexvista-model-cost-hover-details.png) |
-| 悬浮看板趋势节点 | 图表内悬浮卡 | 日期或周期、总 Token、四类 Token 和 API 等值费用 | [截图](images/codexvista-trend-hover.png) |
-| 悬浮日历日期 | 日历弹窗 | 当日总 Token 与四类 Token 构成 | [截图](images/codexvista-calendar-day-hover.png) |
+| 悬浮看板趋势节点 | 图表内悬浮卡 | 日期或周期、总 Token、四类 Token、API 等值费用及可展开模型明细 | [折叠](images/codexvista-trend-hover.png) · [展开](images/codexvista-trend-hover-details.png) |
+| 悬浮日历日期 | 日历弹窗 | 当日总 Token、四类 Token 构成、API 等值费用及可展开模型明细 | [截图](images/codexvista-calendar-day-hover.png) |
 | 悬浮热力图例 | 图例弹窗 | 颜色等级对应的 Token 区间和当月峰值 | [截图](images/codexvista-calendar-legend-hover.png) |
 | 悬浮命名空间 Skill | Skill 细分弹窗 | 细分 Skill、直接使用次数和总调用次数 | [截图](images/codexvista-skill-breakdown-hover.png) |
 | 点击今日任务行 | 独立详情窗口 | 今日四类 Token、API 等值费用、耗时、模型、Skills / Tools 调用、项目目录和回复明细；点击主窗口时关闭，鼠标移出不会关闭 | [截图](images/codexvista-today-task-detail.png) |
@@ -125,6 +125,8 @@
 - 每日统计按 UTC 日期归属，以尽量接近 Codex 服务端的每日统计口径。
 
 ![看板趋势节点悬浮明细](images/codexvista-trend-hover.png)
+
+![看板趋势节点展开模型明细](images/codexvista-trend-hover-details.png)
 
 ![日历日期悬浮明细](images/codexvista-calendar-day-hover.png)
 

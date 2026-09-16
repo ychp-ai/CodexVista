@@ -70,6 +70,8 @@ enum DocumentationCapture {
         let usage = snapshot.dailyUsage.last!
         try capture("codexvista-trend-hover.png", title: "趋势节点明细", width: 430,
                     DailyUsageHoverCard(usage: usage, dateText: "2026年9月4日", showsModelDetails: .constant(false)).padding(24))
+        try capture("codexvista-trend-hover-details.png", title: "趋势节点 · 模型明细", width: 430,
+                    DailyUsageHoverCard(usage: usage, dateText: "2026年9月4日", showsModelDetails: .constant(true)).padding(24))
         try capture("codexvista-calendar-day-hover.png", title: "用量日历 · 日期明细", width: 430,
                     VStack(spacing: 14) {
                         UsageCalendarPanel(usage: snapshot.dailyUsage, today: DocumentationFixture.now).frame(height: 270)
