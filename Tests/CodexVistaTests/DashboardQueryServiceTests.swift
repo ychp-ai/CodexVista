@@ -534,18 +534,30 @@ final class DashboardQueryServiceTests: XCTestCase {
         XCTAssertEqual(UsageTrendSeries.make(from: []).count, 1)
     }
 
-    func testTrendHoverChoosesNearestDateThenNearestVisibleSeries() {
+    func testTrendHoverChoosesNearestDateThenHighestVisiblePoint() {
         let targets = [
             UsageTrendHitTarget(selection: .init(seriesID: "total", dayID: "day-a"), position: CGPoint(x: 10, y: 20)),
             UsageTrendHitTarget(selection: .init(seriesID: "model:a", dayID: "day-a"), position: CGPoint(x: 10, y: 80)),
             UsageTrendHitTarget(selection: .init(seriesID: "total", dayID: "day-b"), position: CGPoint(x: 30, y: 80))
         ]
         XCTAssertEqual(UsageTrendHitTarget.nearest(to: CGPoint(x: 12, y: 75), in: targets),
-                       UsageTrendSelection(seriesID: "model:a", dayID: "day-a"))
+                       UsageTrendSelection(seriesID: "total", dayID: "day-a"))
         XCTAssertEqual(UsageTrendHitTarget.nearest(to: CGPoint(x: 12, y: 25), in: targets),
                        UsageTrendSelection(seriesID: "total", dayID: "day-a"))
         XCTAssertEqual(UsageTrendHitTarget.nearest(to: CGPoint(x: 29, y: 20), in: targets),
                        UsageTrendSelection(seriesID: "total", dayID: "day-b"))
+        // Hiding the total curve anchors to the highest remaining model.
+        XCTAssertEqual(UsageTrendHitTarget.nearest(to: CGPoint(x: 12, y: 0), in: Array(targets.dropFirst())),
+                       UsageTrendSelection(seriesID: "model:a", dayID: "day-a"))
+        // A midpoint selects the earlier date consistently, independent of cursor height.
+        XCTAssertEqual(UsageTrendHitTarget.nearest(to: CGPoint(x: 20, y: 80), in: targets.reversed()),
+                       UsageTrendSelection(seriesID: "total", dayID: "day-a"))
+        let tiedTargets = [
+            UsageTrendHitTarget(selection: .init(seriesID: "model:a", dayID: "day-a"), position: .zero),
+            UsageTrendHitTarget(selection: .init(seriesID: "total", dayID: "day-a"), position: .zero)
+        ]
+        XCTAssertEqual(UsageTrendHitTarget.nearest(to: .zero, in: tiedTargets),
+                       UsageTrendSelection(seriesID: "total", dayID: "day-a"))
         XCTAssertNil(UsageTrendHitTarget.nearest(to: .zero, in: []))
     }
 

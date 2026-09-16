@@ -196,6 +196,7 @@ struct UsageCalendarPanel: View {
     @State private var hoveredUsageID: DailyUsage.ID?
     @State private var hoverDismissTask: Task<Void, Never>?
     @State private var hoveredLegendLevel: Int?
+    @State private var isShowingModelDetails = false
 
     init(
         usage: [DailyUsage],
@@ -234,6 +235,11 @@ struct UsageCalendarPanel: View {
                 calendarContent(month: month, cells: cells, maximum: maximum)
                     .dashboardPanel(padding: 14)
             }
+        }
+        .onDisappear {
+            hoverDismissTask?.cancel()
+            hoveredUsageID = nil
+            isShowingModelDetails = false
         }
         .onChange(of: usage.first?.id) { _, _ in
             displayedMonth = model.clampedMonth(displayedMonth)
@@ -283,6 +289,8 @@ struct UsageCalendarPanel: View {
     private func monthButton(systemImage: String, offset: Int, month: Date) -> some View {
         Button {
             withAnimation(.easeOut(duration: 0.16)) {
+                hoverDismissTask?.cancel()
+                isShowingModelDetails = false
                 hoveredUsageID = nil
                 displayedMonth = model.movingMonth(month, by: offset)
             }
@@ -346,7 +354,7 @@ struct UsageCalendarPanel: View {
                     attachmentAnchor: .rect(.bounds),
                     arrowEdge: .bottom
                 ) {
-                    DailyUsageHoverCard(usage: item, dateText: item.id)
+                    DailyUsageHoverCard(usage: item, dateText: item.id, showsModelDetails: $isShowingModelDetails)
                         .padding(4)
                         .onHover { updateUsageHover($0, id: item.id) }
                 }
@@ -427,6 +435,7 @@ struct UsageCalendarPanel: View {
 
     private func updateUsageHover(_ active: Bool, id: DailyUsage.ID) {
         hoverDismissTask?.cancel()
+        guard !isShowingModelDetails else { return }
         if active {
             hoveredUsageID = id
         } else {
@@ -436,7 +445,7 @@ struct UsageCalendarPanel: View {
                 } catch {
                     return
                 }
-                if hoveredUsageID == id { hoveredUsageID = nil }
+                if !isShowingModelDetails, hoveredUsageID == id { hoveredUsageID = nil }
             }
         }
     }
@@ -446,6 +455,8 @@ struct UsageCalendarPanel: View {
             get: { hoveredUsageID == id },
             set: { isPresented in
                 if !isPresented, hoveredUsageID == id {
+                    hoverDismissTask?.cancel()
+                    isShowingModelDetails = false
                     hoveredUsageID = nil
                 }
             }
@@ -527,159 +538,4 @@ private struct UsageHeatLegendHoverCard: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel("用量等级 \(level)，\(rangeText)")
     }
-}
-
-struct DailyUsageHoverCard: View {
-    let usage: DailyUsage
-    let dateText: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(dateText)
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-
-                Spacer(minLength: 8)
-
-                Text("总 Token")
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-                Text(TokenFormatter.compact(usage.total))
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                    .foregroundStyle(CodexVistaTheme.dashboardPrimaryText)
-                    .monospacedDigit()
-            }
-
-            Rectangle()
-                .fill(CodexVistaTheme.dashboardBorder.opacity(0.8))
-                .frame(height: 1)
-
-            TokenCompositionView(
-                breakdown: TokenBreakdown(input: usage.uncachedInput, cachedInput: usage.cachedInput,
-                                          output: usage.output, reasoning: usage.reasoning),
-                total: usage.total, compact: true
-            )
-            .padding(.vertical, 5)
-
-            if let estimatedCostUSD = usage.estimatedCostUSD {
-                Rectangle()
-                    .fill(CodexVistaTheme.dashboardBorder.opacity(0.8))
-                    .frame(height: 1)
-
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("API 等值预计花费")
-                        .font(.system(size: 9, weight: .medium))
-                        .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-
-                    Spacer(minLength: 8)
-
-                    Text(ModelCostFormatter.usd(
-                        estimatedCostUSD,
-                        approximate: usage.referencePricedModelCount > 0
-                    ))
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .foregroundStyle(CodexVistaTheme.dashboardAccent)
-                        .monospacedDigit()
-                }
-
-                if usage.unpricedModelCount > 0 {
-                    Text("部分估算 · \(usage.unpricedModelCount) 个模型未定价")
-                        .font(.system(size: 8.5, weight: .medium))
-                        .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-                } else if usage.referencePricedModelCount > 0 {
-                    Text("参考估算 · \(usage.referencePricedModelCount) 个模型按 GPT-5.5 参考价")
-                        .font(.system(size: 8.5, weight: .medium))
-                        .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-                }
-            }
-            if !usage.modelEntries.isEmpty {
-                Divider()
-                Text("模型用量 · \(usage.modelEntries.count)")
-                    .font(.system(size: 10, weight: .semibold))
-                ScrollView(.vertical) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        ForEach(usage.modelEntries) { entry in
-                            modelSection(entry)
-                        }
-                    }
-                    .padding(.vertical, 5)
-                }
-                .frame(height: min(CGFloat(usage.modelEntries.count) * 150, 300))
-                .scrollIndicators(.visible)
-                Text("API 等值估算，不代表 Codex 实际账单。")
-                    .font(.system(size: 8.5))
-                    .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-            }
-        }
-        .frame(width: usage.modelEntries.isEmpty ? 250 : 310)
-        .padding(.horizontal, 9)
-        .padding(.vertical, 7)
-        .background(
-            CodexVistaTheme.dashboardSurface,
-            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(CodexVistaTheme.dashboardBorder)
-        }
-        .shadow(color: CodexVistaTheme.dashboardShadow, radius: 7, y: 3)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(
-            "\(dateText)，总 Token \(usage.total)，输入 \(usage.uncachedInput)（\(tokenShare(usage.uncachedInput))），缓存 \(usage.cachedInput)（\(tokenShare(usage.cachedInput))），输出 \(usage.output)（\(tokenShare(usage.output))），推理 \(usage.reasoning)（\(tokenShare(usage.reasoning))）\(costAccessibilityDescription)"
-        )
-    }
-
-    private func modelSection(_ entry: ModelUsageEntry) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(entry.model)
-                    .font(.system(size: 10, weight: .semibold))
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 8)
-                Text(TokenFormatter.compact(entry.totalTokens))
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
-            }
-            TokenCompositionView(
-                breakdown: TokenBreakdown(
-                    input: entry.uncachedInputTokens, cachedInput: entry.cachedInputTokens,
-                    output: entry.visibleOutputTokens, reasoning: entry.reasoningTokens
-                ),
-                total: entry.totalTokens, compact: true
-            )
-            HStack {
-                Text("API 等值预计花费")
-                Spacer()
-                Text(entry.estimatedCostUSD.map {
-                    ModelCostFormatter.usd($0, approximate: ModelPricingCatalog.usesReferencePricing(for: entry.model))
-                } ?? "未定价")
-                    .foregroundStyle(CodexVistaTheme.dashboardAccent)
-                    .monospacedDigit()
-            }
-            .font(.system(size: 9, weight: .medium))
-            .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-            Divider()
-        }
-    }
-
-    private var costAccessibilityDescription: String {
-        guard let estimatedCostUSD = usage.estimatedCostUSD else { return "" }
-        let unpricedDescription = usage.unpricedModelCount > 0
-            ? "，\(usage.unpricedModelCount) 个模型未定价"
-            : ""
-        let referenceDescription = usage.referencePricedModelCount > 0
-            ? "，\(usage.referencePricedModelCount) 个模型采用 GPT-5.5 参考价"
-            : ""
-        let cost = ModelCostFormatter.usd(
-            estimatedCostUSD,
-            approximate: usage.referencePricedModelCount > 0
-        )
-        return "，API 等值预计花费 \(cost)\(unpricedDescription)\(referenceDescription)"
-    }
-
-    private func tokenShare(_ value: Int) -> String {
-        TokenFormatter.percentage(usage.total > 0 ? Double(value) / Double(usage.total) : 0)
-    }
-
 }

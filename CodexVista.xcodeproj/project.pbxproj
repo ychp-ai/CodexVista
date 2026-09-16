@@ -17,6 +17,7 @@
 		A00000000000000000000007 /* MenuBarPopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000009 /* MenuBarPopoverView.swift */; };
 		A00000000000000000000008 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000010 /* DashboardView.swift */; };
 		A00000000000000000000036 /* UsageCalendarPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000036 /* UsageCalendarPanel.swift */; };
+		A00000000000000000000091 /* DailyUsageHoverCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000091 /* DailyUsageHoverCard.swift */; };
 		A00000000000000000000037 /* ActivityRankingPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000037 /* ActivityRankingPanel.swift */; };
 		A00000000000000000000038 /* ProjectUsagePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000038 /* ProjectUsagePanel.swift */; };
 		A00000000000000000000039 /* UsageReminder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000039 /* UsageReminder.swift */; };
@@ -83,6 +84,7 @@
 		B00000000000000000000009 /* MenuBarPopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/CodexVista/Features/MenuBar/MenuBarPopoverView.swift; sourceTree = SOURCE_ROOT; };
 		B00000000000000000000010 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/CodexVista/Features/Dashboard/DashboardView.swift; sourceTree = SOURCE_ROOT; };
 		B00000000000000000000036 /* UsageCalendarPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/CodexVista/Features/Dashboard/UsageCalendarPanel.swift; sourceTree = SOURCE_ROOT; };
+		B00000000000000000000091 /* DailyUsageHoverCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/CodexVista/Features/Dashboard/DailyUsageHoverCard.swift; sourceTree = SOURCE_ROOT; };
 		B00000000000000000000037 /* ActivityRankingPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/CodexVista/Features/Dashboard/ActivityRankingPanel.swift; sourceTree = SOURCE_ROOT; };
 		B00000000000000000000038 /* ProjectUsagePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/CodexVista/Features/Dashboard/ProjectUsagePanel.swift; sourceTree = SOURCE_ROOT; };
 		B00000000000000000000039 /* UsageReminder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/CodexVista/Support/UsageReminder.swift; sourceTree = SOURCE_ROOT; };
@@ -175,6 +177,7 @@
 				B00000000000000000000010 /* DashboardView.swift */,
 				B00000000000000000000055 /* UsageTrendChart.swift */,
 				B00000000000000000000036 /* UsageCalendarPanel.swift */,
+				B00000000000000000000091 /* DailyUsageHoverCard.swift */,
 				B00000000000000000000037 /* ActivityRankingPanel.swift */,
 				B00000000000000000000038 /* ProjectUsagePanel.swift */,
 				B00000000000000000000048 /* ProjectDetailView.swift */,
@@ -346,6 +349,7 @@
 				A00000000000000000000008 /* DashboardView.swift in Sources */,
 				A00000000000000000000055 /* UsageTrendChart.swift in Sources */,
 				A00000000000000000000036 /* UsageCalendarPanel.swift in Sources */,
+				A00000000000000000000091 /* DailyUsageHoverCard.swift in Sources */,
 				A00000000000000000000037 /* ActivityRankingPanel.swift in Sources */,
 				A00000000000000000000038 /* ProjectUsagePanel.swift in Sources */,
 				A00000000000000000000048 /* ProjectDetailView.swift in Sources */,

@@ -42,7 +42,12 @@ struct UsageTrendHitTarget {
             let leftX = abs(left.position.x - location.x)
             let rightX = abs(right.position.x - location.x)
             if leftX != rightX { return leftX < rightX }
-            return abs(left.position.y - location.y) < abs(right.position.y - location.y)
+            // Keep the date stable at a midpoint, then anchor above its highest visible point.
+            if left.position.x != right.position.x { return left.position.x < right.position.x }
+            if left.position.y != right.position.y { return left.position.y < right.position.y }
+            if left.selection.seriesID == "total" { return right.selection.seriesID != "total" }
+            if right.selection.seriesID == "total" { return false }
+            return left.selection.seriesID < right.selection.seriesID
         }?.selection
     }
 }
@@ -55,6 +60,7 @@ struct UsageTrendChart: View {
     @State private var hiddenSeriesIDs: Set<String> = []
     @State private var selection: UsageTrendSelection?
     @State private var isHoveringCard = false
+    @State private var isShowingModelDetails = false
     @State private var dismissTask: Task<Void, Never>?
 
     private var series: [UsageTrendSeries] { UsageTrendSeries.make(from: usage) }
@@ -147,7 +153,7 @@ struct UsageTrendChart: View {
                                 switch phase {
                                 case .active(let location):
                                     dismissTask?.cancel()
-                                    guard !isHoveringCard else { return }
+                                    guard !isHoveringCard, !isShowingModelDetails else { return }
                                     updateSelection(at: location, proxy: proxy, geometry: geometry)
                                 case .ended:
                                     scheduleDismissal()
@@ -160,11 +166,17 @@ struct UsageTrendChart: View {
                                 .frame(width: 1, height: 1)
                                 .popover(isPresented: Binding(
                                     get: { selection != nil },
-                                    set: { if !$0 { selection = nil } }
+                                    set: { if !$0 {
+                                        selection = nil
+                                        isShowingModelDetails = false
+                                        isHoveringCard = false
+                                        dismissTask?.cancel()
+                                    } }
                                 ), arrowEdge: .bottom) {
                                     DailyUsageHoverCard(
-                                        usage: selectedPoint.usage,
-                                        dateText: "\(selectedPoint.usage.day) · \(selectedPoint.series.title)"
+                                        usage: usage.first(where: { $0.id == selectedPoint.usage.id }) ?? selectedPoint.usage,
+                                        dateText: selectedPoint.usage.day,
+                                        showsModelDetails: $isShowingModelDetails
                                     )
                                     .padding(4)
                                     .onHover { active in
@@ -179,7 +191,12 @@ struct UsageTrendChart: View {
                 }
             }
         }
-        .onDisappear { dismissTask?.cancel() }
+        .onDisappear {
+            dismissTask?.cancel()
+            selection = nil
+            isHoveringCard = false
+            isShowingModelDetails = false
+        }
     }
 
     private var legend: some View {
@@ -188,6 +205,7 @@ struct UsageTrendChart: View {
                 ForEach(series) { series in
                     let isVisible = !hiddenSeriesIDs.contains(series.id)
                     Button {
+                        isShowingModelDetails = false
                         selection = nil
                         isHoveringCard = false
                         if isVisible {
@@ -247,7 +265,7 @@ struct UsageTrendChart: View {
         dismissTask?.cancel()
         dismissTask = Task { @MainActor in
             do { try await Task.sleep(for: .milliseconds(250)) } catch { return }
-            if !isHoveringCard { selection = nil }
+            if !isHoveringCard, !isShowingModelDetails { selection = nil }
         }
     }
 }
