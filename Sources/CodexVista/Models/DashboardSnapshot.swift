@@ -817,6 +817,24 @@ struct ModelUsageSnapshot: Equatable, Sendable {
     }
 }
 
+struct DailyQuotaChange: Identifiable, Sendable {
+    let id: String
+    let observedAt: Date
+    let remaining: Double
+    let reason: String
+}
+
+struct DailyQuotaStatistics: Sendable {
+    var changes: [DailyQuotaChange] = []
+    var consumedPercentagePoints: Double = 0
+    var matchedTokens: Double = 0
+
+    var tokensPerPercent: Double? {
+        guard consumedPercentagePoints > 0, matchedTokens > 0 else { return nil }
+        return matchedTokens / consumedPercentagePoints
+    }
+}
+
 struct DailyUsage: Identifiable, Sendable {
     let id: String
     let day: String
@@ -829,6 +847,7 @@ struct DailyUsage: Identifiable, Sendable {
     let unpricedModelCount: Int
     let referencePricedModelCount: Int
     let modelEntries: [ModelUsageEntry]
+    var quotaStatistics: DailyQuotaStatistics? = nil
 
     init(
         id: String,

@@ -694,6 +694,11 @@ final class UsageStore: @unchecked Sendable {
     }
 
     func latestQuotas() throws -> [StoredQuotaEvent] {
+        var seenKinds: Set<QuotaKind> = []
+        return try quotaHistory().filter { seenKinds.insert($0.observation.kind).inserted }
+    }
+
+    func quotaHistory() throws -> [StoredQuotaEvent] {
         let rows = try database.query(
             sql: """
             SELECT fingerprint, observed_at_ms, thread_id, kind, window_minutes, remaining,
@@ -702,12 +707,10 @@ final class UsageStore: @unchecked Sendable {
             ORDER BY kind, observed_at_ms DESC, fingerprint DESC
             """
         )
-        var seenKinds: Set<QuotaKind> = []
         var result: [StoredQuotaEvent] = []
         for values in rows {
             let row = SQLiteRow(table: "quota_snapshots", values: values)
             let kind = try row.requiredEnum("kind", as: QuotaKind.self)
-            guard seenKinds.insert(kind).inserted else { continue }
             let plan = try SQLitePlanResolution.from(row: row)
             result.append(StoredQuotaEvent(
                 fingerprint: try row.requiredString("fingerprint"),

@@ -3,6 +3,99 @@ import XCTest
 @testable import CodexVista
 
 final class DashboardQueryServiceTests: XCTestCase {
+    func testQuotaEstimateMatchesIntervalsAndDeduplicatesObservations() throws {
+        let events = [quotaSample(1, 0.8), quotaSample(2, 0.8), quotaSample(3, 0.78),
+                      quotaSample(3, 0.78, id: "duplicate"), quotaSample(4, 0.77)]
+        let stats = try XCTUnwrap(DailyQuotaCalculator.calculate(
+            events: events.reversed(),
+            tokens: [(1_000, 999), (2_000, 100), (3_000, 300), (4_000, 200), (5_000, 999)],
+            calendar: CodexUsageCalendar.utc
+        ).values.first)
+        XCTAssertEqual(stats.changes.count, 3)
+        XCTAssertEqual(stats.consumedPercentagePoints, 3, accuracy: 0.00001)
+        XCTAssertEqual(stats.matchedTokens, 600)
+        XCTAssertEqual(try XCTUnwrap(stats.tokensPerPercent), 200, accuracy: 0.00001)
+    }
+
+    func testQuotaEstimateDoesNotBridgeResetRecoveryDayOrConflicts() {
+        let scenarios = [
+            [quotaSample(1, 0.8), quotaSample(2, 0.7, reset: 300_000)],
+            [quotaSample(1, 0.8), quotaSample(2, 0.9)],
+            [quotaSample(1, 0.8), quotaSample(86_401, 0.7)],
+            [quotaSample(1, 0.8), quotaSample(2, 0.7), quotaSample(2, 0.6, id: "conflict"), quotaSample(3, 0.5)],
+            [quotaSample(1, 0.8), quotaSample(2, 0.7, reset: 2)],
+            [quotaSample(1, 0.8), quotaSample(2, 0.8)]
+        ]
+        for events in scenarios {
+            let stats = DailyQuotaCalculator.calculate(
+                events: events, tokens: [(2_000, 100), (3_000, 100), (86_401_000, 100)],
+                calendar: CodexUsageCalendar.utc
+            )
+            XCTAssertTrue(stats.values.allSatisfy { $0.tokensPerPercent == nil })
+        }
+    }
+
+    func testQuotaResetJitterPreservesConsumptionAndFlatIntervalTokens() throws {
+        let events = [quotaSample(1, 0.8), quotaSample(2, 0.8, reset: 200_001),
+                      quotaSample(3, 0.78, reset: 199_999), quotaSample(4, 0.77, reset: 200_009)]
+        let stats = try XCTUnwrap(DailyQuotaCalculator.calculate(
+            events: events, tokens: [(2_000, 100), (3_000, 300), (4_000, 200)],
+            calendar: CodexUsageCalendar.utc
+        ).values.first)
+        XCTAssertEqual(stats.changes.map(\.reason), ["首次观测", "额度消耗", "额度消耗"])
+        XCTAssertEqual(stats.consumedPercentagePoints, 3, accuracy: 0.00001)
+        XCTAssertEqual(try XCTUnwrap(stats.tokensPerPercent), 200, accuracy: 0.00001)
+    }
+
+    func testQuotaResetToleranceDoesNotDriftOrBridgeAnExpiredWindow() throws {
+        let events = [quotaSample(1, 0.8), quotaSample(2, 0.79, reset: 200_060),
+                      quotaSample(3, 0.78, reset: 200_061)]
+        let stats = try XCTUnwrap(DailyQuotaCalculator.calculate(
+            events: events, tokens: [(2_000, 100), (3_000, 900)], calendar: CodexUsageCalendar.utc
+        ).values.first)
+        XCTAssertEqual(stats.changes.map(\.reason), ["首次观测", "额度消耗", "重置时间变化"])
+        XCTAssertEqual(stats.matchedTokens, 100)
+        let expired = DailyQuotaCalculator.calculate(
+            events: [quotaSample(1, 0.8, reset: 2), quotaSample(3, 0.7, reset: 4)],
+            tokens: [(3_000, 100)], calendar: CodexUsageCalendar.utc
+        )
+        XCTAssertNil(expired.values.first?.tokensPerPercent)
+    }
+
+    func testStoredQuotaHistoryKeepsAllObservationsWhileLatestStaysLatest() throws {
+        let store = try makeStore()
+        let events = [quotaSample(1, 0.8), quotaSample(2, 0.7)]
+        try store.commit(batch(events: [], quotas: events))
+        try store.commit(batch(events: [], quotas: events))
+        XCTAssertEqual(try store.quotaHistory().count, 2)
+        XCTAssertEqual(try store.latestQuotas().first?.observation.remaining, 0.7)
+    }
+
+    func testDailySnapshotIncludesQuotaOnlyDaysAndExcludesFutureObservations() throws {
+        let store = try makeStore()
+        try store.commit(batch(events: [
+            usage("matched", at: Date(timeIntervalSince1970: 2), total: 200)
+        ], quotas: [quotaSample(1, 0.8), quotaSample(2, 0.78), quotaSample(86_401, 0.7), quotaSample(86_403, 0.6)]))
+        let snapshot = try DashboardQueryService(store: store).snapshot(
+            now: Date(timeIntervalSince1970: 86_402), calendar: CodexUsageCalendar.utc
+        )
+        let first = try XCTUnwrap(snapshot.dailyUsage.first { $0.id == "1970-01-01" })
+        XCTAssertEqual(try XCTUnwrap(first.quotaStatistics?.tokensPerPercent), 100, accuracy: 0.00001)
+        let second = try XCTUnwrap(snapshot.dailyUsage.first { $0.id == "1970-01-02" })
+        XCTAssertEqual(second.total, 0)
+        XCTAssertEqual(second.quotaStatistics?.changes.count, 1)
+        XCTAssertNil(second.quotaStatistics?.tokensPerPercent)
+    }
+
+    private func quotaSample(_ seconds: Int64, _ remaining: Double, reset: Int64 = 200_000, id: String? = nil) -> StoredQuotaEvent {
+        StoredQuotaEvent(
+            fingerprint: id ?? "quota-\(seconds)", threadID: "test-thread",
+            observation: QuotaObservation(kind: .weekly, observedAtMilliseconds: seconds * 1_000,
+                windowMinutes: 10_080, remaining: remaining, resetsAtMilliseconds: reset * 1_000,
+                plan: PlanResolver.resolve(rawValue: "plus")), sourceKind: .cli
+        )
+    }
+
     func testSubscriptionCycleClampsMonthEndAnchorsWithoutDrifting() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "Asia/Shanghai"))

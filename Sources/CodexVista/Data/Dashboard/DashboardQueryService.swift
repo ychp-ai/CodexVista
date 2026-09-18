@@ -287,6 +287,7 @@ final class DashboardQueryService: @unchecked Sendable {
             models: try models(from: sevenDayRows),
             dailyUsage: try dailyUsage(
                 from: trendRows,
+                quotaEvents: try store.quotaHistory().filter { $0.observation.observedAtMilliseconds <= nowMilliseconds },
                 minimumStart: usageThirtyDayStart,
                 through: usageTodayStart,
                 calendar: resolvedUsageCalendar
@@ -1126,15 +1127,21 @@ final class DashboardQueryService: @unchecked Sendable {
 
     private func dailyUsage(
         from rows: [StoredUsageQueryRow],
+        quotaEvents: [StoredQuotaEvent],
         minimumStart: Date,
         through endDay: Date,
         calendar: Calendar
     ) throws -> [DailyUsage] {
-        guard !rows.isEmpty else { return [] }
+        let quotaDays = DailyQuotaCalculator.calculate(
+            events: quotaEvents,
+            tokens: rows.map { ($0.observedAtMilliseconds, Double($0.totalTokens)) },
+            calendar: calendar
+        )
+        guard !rows.isEmpty || !quotaDays.isEmpty else { return [] }
 
         var totals: [Date: UsageAggregate] = [:]
         var rowsByDay: [Date: [StoredUsageQueryRow]] = [:]
-        var earliestDay = minimumStart
+        var earliestDay = min(minimumStart, quotaDays.keys.min() ?? minimumStart)
         for row in rows {
             let date = Date(timeIntervalSince1970: TimeInterval(row.observedAtMilliseconds) / 1_000)
             let day = calendar.startOfDay(for: date)
@@ -1167,6 +1174,7 @@ final class DashboardQueryService: @unchecked Sendable {
                 referencePricedModelCount: models.referencePricedModelCount,
                 modelEntries: models.entries
             ))
+            result[result.count - 1].quotaStatistics = quotaDays[day] ?? DailyQuotaStatistics()
             guard let next = calendar.date(byAdding: .day, value: 1, to: day), next > day else {
                 throw DashboardQueryError.invalidCalendarBoundary
             }
@@ -1782,5 +1790,91 @@ private extension PlanKind {
         case .proLite: "Pro 5x"
         case .pro20x: "Pro 20x"
         }
+    }
+}
+
+
+/// Match local token deltas to observed quota consumption; never bridge resets or UTC days.
+enum DailyQuotaCalculator {
+    // Rollout reset timestamps can jitter by seconds within the same window.
+    // Compare against a fixed window reference, not a sliding chain of samples.
+    private static func sameResetWindow(_ reference: QuotaObservation, _ current: QuotaObservation) -> Bool {
+        guard let first = reference.resetsAtMilliseconds,
+              let second = current.resetsAtMilliseconds,
+              current.observedAtMilliseconds < first else { return false }
+        return abs(Double(first) - Double(second)) <= 60_000
+    }
+
+    static func calculate(
+        events: [StoredQuotaEvent],
+        tokens: [(timestamp: Int64, total: Double)],
+        calendar: Calendar
+    ) -> [Date: DailyQuotaStatistics] {
+        let groups = Dictionary(grouping: events.filter {
+            $0.observation.kind == .weekly && $0.observation.windowMinutes == 10_080
+        }, by: { $0.observation.observedAtMilliseconds })
+        let sortedTokens = tokens.sorted { $0.timestamp < $1.timestamp }
+        var tokenIndex = 0
+        var cumulativeTokens = 0.0
+        var anchorTokens = 0.0
+        var anchor: QuotaObservation?
+        var previous: QuotaObservation?
+        var windowReference: QuotaObservation?
+        var result: [Date: DailyQuotaStatistics] = [:]
+        for timestamp in groups.keys.sorted() {
+            while tokenIndex < sortedTokens.count, sortedTokens[tokenIndex].timestamp <= timestamp {
+                cumulativeTokens += sortedTokens[tokenIndex].total
+                tokenIndex += 1
+            }
+            let group = groups[timestamp]!.sorted { $0.fingerprint < $1.fingerprint }
+            let observation = group[0].observation
+            // Concurrent threads can report contradictory snapshots. Do not choose one arbitrarily.
+            guard group.allSatisfy({
+                $0.observation.remaining == observation.remaining &&
+                sameResetWindow(observation, $0.observation) &&
+                $0.observation.plan == observation.plan
+            }), observation.remaining.isFinite, (0...1).contains(observation.remaining),
+               let reset = observation.resetsAtMilliseconds, reset > timestamp else {
+                anchor = nil
+                previous = nil
+                windowReference = nil
+                continue
+            }
+            let date = Date(timeIntervalSince1970: Double(timestamp) / 1_000)
+            let day = calendar.startOfDay(for: date)
+            let changedPlan = previous.map { $0.plan != observation.plan } ?? false
+            let changedReset = windowReference.map { !sameResetWindow($0, observation) } ?? false
+            let changedWindow = changedPlan || changedReset
+            if windowReference == nil || changedWindow { windowReference = observation }
+            if previous == nil || changedWindow || previous?.remaining != observation.remaining {
+                let reason = previous == nil ? "首次观测" : changedPlan ? "套餐变化" :
+                    changedReset ? "重置时间变化" :
+                    observation.remaining > previous!.remaining ? "额度回升" : "额度消耗"
+                result[day, default: DailyQuotaStatistics()].changes.append(DailyQuotaChange(
+                    id: group[0].fingerprint, observedAt: date,
+                    remaining: observation.remaining, reason: reason
+                ))
+            }
+            if let start = anchor,
+               !changedWindow,
+               calendar.isDate(Date(timeIntervalSince1970: Double(start.observedAtMilliseconds) / 1_000), inSameDayAs: date),
+               observation.remaining <= start.remaining {
+                let consumed = (start.remaining - observation.remaining) * 100
+                if consumed > 0 {
+                    let matched = cumulativeTokens - anchorTokens
+                    if matched > 0 {
+                        result[day, default: DailyQuotaStatistics()].consumedPercentagePoints += consumed
+                        result[day, default: DailyQuotaStatistics()].matchedTokens += matched
+                    }
+                    anchor = observation
+                    anchorTokens = cumulativeTokens
+                }
+            } else {
+                anchor = observation
+                anchorTokens = cumulativeTokens
+            }
+            previous = observation
+        }
+        return result
     }
 }

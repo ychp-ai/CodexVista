@@ -1,9 +1,45 @@
+import AppKit
+import SwiftUI
 import Foundation
 import XCTest
 @testable import CodexVista
 
 @MainActor
 final class DashboardStoreTests: XCTestCase {
+    func testDailyDetailPopoverKeepsSizeAcrossDataAndExpandedModels() {
+        let empty = DailyUsage(id: "2026-09-18", day: "9/18", total: 0)
+        let host = NSHostingView(rootView: DailyUsageHoverCard(
+            usage: empty, dateText: empty.id, showsModelDetails: .constant(false)
+        ))
+        let initialSize = host.fittingSize
+        XCTAssertGreaterThan(initialSize.width, 0)
+        XCTAssertGreaterThan(initialSize.height, 0)
+
+        var populated = DailyUsage(
+            id: empty.id, day: empty.day, total: 1_000,
+            estimatedCostUSD: 0.01,
+            modelEntries: [ModelUsageEntry(
+                model: "test-model", totalTokens: 1_000, uncachedInputTokens: 800,
+                cachedInputTokens: 100, visibleOutputTokens: 80, reasoningTokens: 20,
+                share: 1, estimatedCostUSD: 0.01
+            )]
+        )
+        populated.quotaStatistics = DailyQuotaStatistics(
+            changes: [DailyQuotaChange(id: "sample", observedAt: Date(timeIntervalSince1970: 0),
+                remaining: 0.8, reason: "额度消耗")],
+            consumedPercentagePoints: 2, matchedTokens: 1_000
+        )
+        for expanded in [false, true, false] {
+            host.rootView = DailyUsageHoverCard(
+                usage: populated, dateText: populated.id, showsModelDetails: .constant(expanded)
+            )
+            host.layoutSubtreeIfNeeded()
+            XCTAssertEqual(host.fittingSize.width, initialSize.width, accuracy: 0.5)
+            XCTAssertEqual(host.fittingSize.height, initialSize.height, accuracy: 0.5,
+                "Changing daily detail content must not resize the native popover")
+        }
+    }
+
     func testNativeTooltipConfigurationAppliesDelayWithinOneSecond() throws {
         let key = "NSInitialToolTipDelay"
         let suiteName = "AppTooltipConfigurationTests-\(UUID().uuidString)"
