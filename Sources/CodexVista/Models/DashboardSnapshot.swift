@@ -187,6 +187,9 @@ struct WorkspaceUsageEntry: Identifiable, Equatable, Sendable {
     let conversations: [ProjectConversationUsage]
     let dailyUsage: [ProjectDailyUsage]
     var configuredDirectories: [WorkspaceDirectory] = []
+    var subagents: [ProjectConversationUsage] {
+        conversations.flatMap(\.subagents)
+    }
 
     var directories: [WorkspaceDirectory] {
         if !configuredDirectories.isEmpty { return configuredDirectories }
@@ -241,6 +244,7 @@ struct ProjectConversationUsage: Identifiable, Equatable, Sendable {
     let lastMessageAtMilliseconds: Int64?
     let replies: [ProjectReplyUsage]
     let unattributedTokens: Int
+    let subagents: [ProjectConversationUsage]
 
     init(
         shortThreadID: String,
@@ -248,7 +252,8 @@ struct ProjectConversationUsage: Identifiable, Equatable, Sendable {
         tokens: Int,
         lastMessageAtMilliseconds: Int64?,
         replies: [ProjectReplyUsage] = [],
-        unattributedTokens: Int = 0
+        unattributedTokens: Int = 0,
+        subagents: [ProjectConversationUsage] = []
     ) {
         self.shortThreadID = shortThreadID
         self.displayTitle = displayTitle
@@ -256,6 +261,7 @@ struct ProjectConversationUsage: Identifiable, Equatable, Sendable {
         self.lastMessageAtMilliseconds = lastMessageAtMilliseconds
         self.replies = replies
         self.unattributedTokens = unattributedTokens
+        self.subagents = subagents
     }
 
     var id: String { shortThreadID }

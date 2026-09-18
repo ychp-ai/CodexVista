@@ -525,17 +525,53 @@ struct ProjectDetailView: View {
             .frame(maxWidth: .infinity, minHeight: 130)
         } else {
             LazyVStack(spacing: 7) {
-                ForEach(Array(sortedConversations.enumerated()), id: \.element.id) {
-                    index,
-                    conversation in
-                    conversationDetailRow(
-                        conversation,
-                        position: index + 1,
-                        enablesHover: enablesHover
-                    )
+                ForEach(conversationListRows) { row in
+                    VStack(alignment: .leading, spacing: 7) {
+                        if let count = row.subagentCount {
+                            Label("子 agent · \(count)", systemImage: "person.2")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+                        }
+                        conversationDetailRow(
+                            row.conversation,
+                            position: row.position,
+                            enablesHover: enablesHover
+                        )
+                    }
+                    .padding(.leading, row.isSubagent ? 28 : 0)
                 }
             }
         }
+    }
+
+    // Keep each task/agent as a separate lazy item. A task containing a large
+    // eager child stack destabilizes LazyVStack's visible-range estimates.
+    private var conversationListRows: [ConversationListRow] {
+        sortedConversations.enumerated().flatMap { index, conversation in
+            [ConversationListRow(
+                id: conversation.id,
+                conversation: conversation,
+                position: index + 1,
+                isSubagent: false,
+                subagentCount: nil
+            )] + conversationSortOrder.sorted(conversation.subagents).enumerated().map { childIndex, agent in
+                ConversationListRow(
+                    id: "\(conversation.id)/\(agent.id)",
+                    conversation: agent,
+                    position: childIndex + 1,
+                    isSubagent: true,
+                    subagentCount: childIndex == 0 ? conversation.subagents.count : nil
+                )
+            }
+        }
+    }
+
+    private struct ConversationListRow: Identifiable {
+        let id: String
+        let conversation: ProjectConversationUsage
+        let position: Int
+        let isSubagent: Bool
+        let subagentCount: Int?
     }
 
     private func conversationDetailRow(
@@ -672,7 +708,7 @@ struct ProjectDetailView: View {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 9.5, weight: .medium))
                 .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-            TextField("搜索任务", text: $conversationSearchText)
+            TextField("搜索任务或子 agent", text: $conversationSearchText)
                 .textFieldStyle(.plain)
                 .font(.system(size: 10, weight: .medium))
         }
@@ -930,16 +966,18 @@ struct ProjectDetailView: View {
     private var sortedConversations: [ProjectConversationUsage] {
         let filtered = visibleConversations.filter { conversation in
             guard !conversationSearchText.isEmpty else { return true }
-            return (conversation.displayTitle ?? conversation.shortThreadID)
-                .localizedCaseInsensitiveContains(conversationSearchText)
-                || conversation.shortThreadID.localizedCaseInsensitiveContains(conversationSearchText)
+            return ([conversation] + conversation.subagents).contains { candidate in
+                (candidate.displayTitle ?? candidate.shortThreadID)
+                    .localizedCaseInsensitiveContains(conversationSearchText)
+                    || candidate.shortThreadID.localizedCaseInsensitiveContains(conversationSearchText)
+            }
         }
         return conversationSortOrder.sorted(filtered)
     }
 
     private var replyRows: [ProjectReplyDetailRow] {
         let conversations = selectedReplyConversationID.map { selectedID in
-            visibleConversations.filter { $0.id == selectedID }
+            (visibleConversations + entry.subagents).filter { $0.id == selectedID }
         } ?? visibleConversations
 
         return conversations.flatMap { conversation in
@@ -962,7 +1000,7 @@ struct ProjectDetailView: View {
 
     private var selectedReplyConversation: ProjectConversationUsage? {
         guard let selectedReplyConversationID else { return nil }
-        return visibleConversations.first { $0.id == selectedReplyConversationID }
+        return (visibleConversations + entry.subagents).first { $0.id == selectedReplyConversationID }
     }
 
     private var visibleConversations: [ProjectConversationUsage] {

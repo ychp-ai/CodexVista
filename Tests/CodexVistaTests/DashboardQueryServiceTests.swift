@@ -1029,6 +1029,49 @@ final class DashboardQueryServiceTests: XCTestCase {
         XCTAssertEqual(tasks.map(\.aiWorktimeMilliseconds), [45_000, 15_000, 20_000])
     }
 
+    func testSubagentListKeepsNestedAgentsSeparateAndRespectsTimeRange() throws {
+        let now = Date(timeIntervalSince1970: 200_000)
+        let store = try makeStore()
+        try store.commit(batch(
+            events: [
+                usage("root", at: now.addingTimeInterval(-20), total: 30,
+                      threadID: "root", turnID: "root-turn"),
+                usage("child", at: now.addingTimeInterval(-10), total: 20,
+                      threadID: "child", turnID: "child-turn"),
+                usage("grandchild", at: now.addingTimeInterval(-5), total: 10,
+                      threadID: "grandchild", turnID: "grandchild-turn"),
+                usage("old-child", at: now.addingTimeInterval(-172_800), total: 5,
+                      threadID: "old-child", turnID: "old-turn"),
+                usage("other-child", at: now.addingTimeInterval(-5), total: 7,
+                      threadID: "other-child", turnID: "other-turn"),
+                usage("guardian", at: now.addingTimeInterval(-5), total: 1,
+                      threadID: "guardian", turnID: "guardian-turn")
+            ],
+            quotas: []
+        ))
+        let snapshot = try DashboardQueryService(store: store).snapshot(
+            now: now,
+            calendar: CodexUsageCalendar.utc,
+            threadTitlesByThreadID: ["guardian": "命令权限检查"],
+            parentThreadIDsByChildThreadID: [
+                "child": "root", "grandchild": "child", "old-child": "root",
+                "guardian": "root", "no-usage": "root", "other-child": "other-root"
+            ]
+        )
+        let today = try XCTUnwrap(snapshot.workspaceUsage.today.entries.first)
+        XCTAssertEqual(today.subagents.map(\.tokens).sorted(), [7, 10, 20])
+        XCTAssertEqual(today.visibleConversations.count, 2)
+        XCTAssertEqual(today.tokens, 68)
+        let root = try XCTUnwrap(today.visibleConversations.first { $0.id == ThreadDisplayIdentifier.make(from: "root") })
+        let otherRoot = try XCTUnwrap(today.visibleConversations.first { $0.id == ThreadDisplayIdentifier.make(from: "other-root") })
+        XCTAssertEqual(root.tokens, 60)
+        XCTAssertEqual(root.subagents.map(\.tokens).sorted(), [10, 20])
+        XCTAssertEqual(otherRoot.subagents.map(\.tokens), [7])
+        let allTime = try XCTUnwrap(snapshot.workspaceUsage.allTime.entries.first)
+        XCTAssertEqual(allTime.subagents.map(\.tokens).sorted(), [5, 7, 10, 20])
+        XCTAssertEqual(allTime.tokens, 73)
+    }
+
     func testSubagentUsageMergesIntoReplyThatSpawnedIt() throws {
         let now = Date(timeIntervalSince1970: 20_000)
         let project = ProjectIdentity(id: "project-a", name: "CodexVista")
@@ -1084,12 +1127,12 @@ final class DashboardQueryServiceTests: XCTestCase {
                 activity(
                     "child-tool", kind: .tool, name: "exec_command",
                     at: now.addingTimeInterval(-25),
-                    threadID: "child-thread", turnID: "shared-turn"
+                    threadID: "child-thread", turnID: "child-turn"
                 ),
                 activity(
                     "child-skill", kind: .skill, name: "ai-code-review",
                     at: now.addingTimeInterval(-24),
-                    threadID: "child-thread", turnID: "shared-turn"
+                    threadID: "child-thread", turnID: "child-turn"
                 )
             ],
             sessions: [
@@ -1120,9 +1163,22 @@ final class DashboardQueryServiceTests: XCTestCase {
         )
         let projectEntry = try XCTUnwrap(entry.projects.first)
 
+        let agent = try XCTUnwrap(entry.subagents.first)
+        XCTAssertEqual(entry.subagents.count, 1)
+        XCTAssertEqual(agent.displayTitle, "Codex 子任务 · Ada")
+        XCTAssertEqual(agent.tokens, 25)
+        XCTAssertEqual(agent.aiWorktimeMilliseconds, 14_000)
+        XCTAssertEqual(agent.replies.count, 1)
+        XCTAssertEqual(agent.replies.first?.status, .completed)
+        XCTAssertEqual(agent.modelCalls, [ProjectReplyActivityCall(name: "child-model", count: 1)])
+        XCTAssertEqual(agent.toolCalls, [ProjectReplyActivityCall(name: "exec_command", count: 1)])
+        XCTAssertEqual(agent.skillCalls, [ProjectReplyActivityCall(name: "ai-code-review", count: 1)])
+        XCTAssertEqual(entry.tokens, 65)
+
         XCTAssertEqual(entry.conversations.count, 1)
         let conversation = try XCTUnwrap(entry.conversations.first)
         XCTAssertEqual(conversation.displayTitle, "主任务")
+        XCTAssertEqual(conversation.subagents, [agent])
         XCTAssertEqual(conversation.tokens, 65)
         XCTAssertEqual(conversation.aiWorktimeMilliseconds, 45_000)
         XCTAssertEqual(entry.aiWorktimeMilliseconds, 45_000)

@@ -96,6 +96,22 @@ final class DashboardQueryService: @unchecked Sendable {
                 return ThreadTurnKey(threadID: session.threadID, turnID: activeTurnID)
             })
         )
+        let directReplyAttribution = ThreadReplyAttributionResolver(
+            parentThreadIDsByChildThreadID: [:],
+            childCreatedAtMillisecondsByThreadID: [:],
+            lifecycleRows: [],
+            activityRows: []
+        )
+        let directTurnLifecycleFacts = makeTurnLifecycleFacts(
+            from: lifecycleRows,
+            replyAttribution: directReplyAttribution,
+            threadTitlesByThreadID: threadTitlesByThreadID,
+            activeTurnKeys: Set(sessions.compactMap { session in
+                guard session.activity == .running,
+                      let turnID = session.activeTurnID, !turnID.isEmpty else { return nil }
+                return ThreadTurnKey(threadID: session.threadID, turnID: turnID)
+            })
+        )
         let sessionLastMessageTimes = sessions.reduce(into: [String: Int64]()) {
             result, session in
             if let updatedAtMilliseconds = session.updatedAtMilliseconds {
@@ -163,6 +179,7 @@ final class DashboardQueryService: @unchecked Sendable {
                 threadTitlesByThreadID: threadTitlesByThreadID,
                 replyAttribution: replyAttribution,
                 turnLifecycleFacts: turnLifecycleFacts,
+                directTurnLifecycleFacts: directTurnLifecycleFacts,
                 worktimeFromMilliseconds: milliseconds(for: todayStart),
                 worktimeToMilliseconds: nowMilliseconds,
                 workspaceAliases: workspaceAliases,
@@ -180,6 +197,7 @@ final class DashboardQueryService: @unchecked Sendable {
                 threadTitlesByThreadID: threadTitlesByThreadID,
                 replyAttribution: replyAttribution,
                 turnLifecycleFacts: turnLifecycleFacts,
+                directTurnLifecycleFacts: directTurnLifecycleFacts,
                 worktimeFromMilliseconds: milliseconds(for: sevenDayStart),
                 worktimeToMilliseconds: nowMilliseconds,
                 workspaceAliases: workspaceAliases,
@@ -197,6 +215,7 @@ final class DashboardQueryService: @unchecked Sendable {
                 threadTitlesByThreadID: threadTitlesByThreadID,
                 replyAttribution: replyAttribution,
                 turnLifecycleFacts: turnLifecycleFacts,
+                directTurnLifecycleFacts: directTurnLifecycleFacts,
                 worktimeFromMilliseconds: milliseconds(for: thirtyDayStart),
                 worktimeToMilliseconds: nowMilliseconds,
                 workspaceAliases: workspaceAliases,
@@ -214,6 +233,7 @@ final class DashboardQueryService: @unchecked Sendable {
                 threadTitlesByThreadID: threadTitlesByThreadID,
                 replyAttribution: replyAttribution,
                 turnLifecycleFacts: turnLifecycleFacts,
+                directTurnLifecycleFacts: directTurnLifecycleFacts,
                 worktimeFromMilliseconds: nil,
                 worktimeToMilliseconds: nowMilliseconds,
                 workspaceAliases: workspaceAliases,
@@ -238,6 +258,7 @@ final class DashboardQueryService: @unchecked Sendable {
                 threadTitlesByThreadID: threadTitlesByThreadID,
                 replyAttribution: replyAttribution,
                 turnLifecycleFacts: turnLifecycleFacts,
+                directTurnLifecycleFacts: directTurnLifecycleFacts,
                 worktimeFromMilliseconds: cycleStart,
                 worktimeToMilliseconds: nowMilliseconds,
                 workspaceAliases: workspaceAliases,
@@ -351,12 +372,58 @@ final class DashboardQueryService: @unchecked Sendable {
         threadTitlesByThreadID: [String: String],
         replyAttribution: ThreadReplyAttributionResolver,
         turnLifecycleFacts: [ThreadTurnKey: TurnLifecycleFact],
+        directTurnLifecycleFacts: [ThreadTurnKey: TurnLifecycleFact]? = nil,
         worktimeFromMilliseconds: Int64?,
         worktimeToMilliseconds: Int64,
         workspaceAliases: [WorkspaceUsageKey: WorkspaceUsageKey],
         workspaceConfigurations: [String: StoredWorkspaceConfiguration],
         activityRows: [StoredActivityEvent]
     ) throws -> WorkspaceUsageRanking {
+        // A separate projection preserves each agent's own replies and lifecycle.
+        // These rows are for drill-down only and never added to project totals.
+        var subagentsByWorkspaceAndRoot: [String: [String: [ProjectConversationUsage]]] = [:]
+        if let directTurnLifecycleFacts {
+            let childRows = rows.filter {
+                replyAttribution.rootThreadID(for: $0.threadID) != $0.threadID
+                    && ProjectConversationUsage.isIncludedInTaskMetrics(
+                        displayTitle: threadTitlesByThreadID[$0.threadID]
+                    )
+            }
+            if !childRows.isEmpty {
+                let directAttribution = ThreadReplyAttributionResolver(
+                    parentThreadIDsByChildThreadID: [:],
+                    childCreatedAtMillisecondsByThreadID: [:],
+                    lifecycleRows: [],
+                    activityRows: []
+                )
+                let childRanking = try workspaceRanking(
+                    from: childRows,
+                    trendRows: [],
+                    trendDayStarts: [],
+                    calendar: calendar,
+                    sessionLastMessageTimes: sessionLastMessageTimes,
+                    threadTitlesByThreadID: threadTitlesByThreadID,
+                    replyAttribution: directAttribution,
+                    turnLifecycleFacts: directTurnLifecycleFacts,
+                    worktimeFromMilliseconds: worktimeFromMilliseconds,
+                    worktimeToMilliseconds: worktimeToMilliseconds,
+                    workspaceAliases: workspaceAliases,
+                    workspaceConfigurations: workspaceConfigurations,
+                    activityRows: activityRows
+                )
+                let rootByChildID = childRows.reduce(into: [String: String]()) { result, row in
+                    result[ThreadDisplayIdentifier.make(from: row.threadID)] =
+                        replyAttribution.rootThreadID(for: row.threadID)
+                }
+                for entry in childRanking.entries {
+                    for agent in entry.visibleConversations {
+                        guard let rootID = rootByChildID[agent.id] else { continue }
+                        subagentsByWorkspaceAndRoot[entry.id, default: [:]][rootID, default: []]
+                            .append(agent)
+                    }
+                }
+            }
+        }
         let turnActivityFacts = makeTurnActivityFacts(
             from: activityRows,
             replyAttribution: replyAttribution,
@@ -654,7 +721,8 @@ final class DashboardQueryService: @unchecked Sendable {
                     tokens: Int(clamping: aggregate.tokens),
                     lastMessageAtMilliseconds: aggregate.lastMessageAtMilliseconds,
                     replies: replies,
-                    unattributedTokens: Int(clamping: aggregate.unattributedTokens)
+                    unattributedTokens: Int(clamping: aggregate.unattributedTokens),
+                    subagents: subagentsByWorkspaceAndRoot[entry.key.id]?[threadID] ?? []
                 )
             }
             return WorkspaceUsageEntry(

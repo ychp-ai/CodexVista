@@ -95,7 +95,7 @@ CodexVista 是第三方本地工具，并非 OpenAI 官方产品。
 
 ![回复明细：状态、耗时、模型调用次数及 Skills / Tools](docs/images/codexvista-reply-details.png)
 
-任务和回复行均可悬浮查看完整模型、Skills / Tools、Token 和 API 等值费用。子 agent 用量并入对应主任务与创建它的主回复；子 agent 完成不会提前结束仍在运行的主任务。更多明细见[完整功能说明](docs/FEATURES.md)。
+任务和回复行均可悬浮查看完整模型、Skills / Tools、Token 和 API 等值费用。项目详情的任务明细在各主任务下方缩进展示所属子 agent，支持搜索、排序、悬浮查看调用与 Token 明细，并可点击查看其独立回复。子 agent 用量仍并入对应主任务与创建它的主回复，独立列表不会重复计入项目总量；子 agent 完成不会提前结束仍在运行的主任务。更多明细见[完整功能说明](docs/FEATURES.md)。
 
 ### 设置
 
