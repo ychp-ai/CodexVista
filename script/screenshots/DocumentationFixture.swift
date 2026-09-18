@@ -41,9 +41,24 @@ enum DocumentationFixture {
                 let tokens = 12_000 * weights[index]
                 let replies = [reply(index, tokens: tokens * 3 / 5, running: index == 0),
                                reply(index + 6, tokens: tokens * 2 / 5)]
+                let subagents: [ProjectConversationUsage]
+                if index == 0 {
+                    let agentTokens = tokens / 5
+                    let agentReplies = [reply(12, tokens: agentTokens)]
+                    subagents = [ProjectConversationUsage(
+                        shortThreadID: "example-agent-0",
+                        displayTitle: "Codex 子任务 · 界面核验",
+                        tokens: agentTokens,
+                        lastMessageAtMilliseconds: agentReplies[0].lastUsageAtMilliseconds,
+                        replies: agentReplies
+                    )]
+                } else {
+                    subagents = []
+                }
                 return ProjectConversationUsage(shortThreadID: "example-task-\(index)",
                     displayTitle: titles[project][task], tokens: tokens,
-                    lastMessageAtMilliseconds: replies.map(\.lastUsageAtMilliseconds).max(), replies: replies)
+                    lastMessageAtMilliseconds: replies.map(\.lastUsageAtMilliseconds).max(), replies: replies,
+                    subagents: subagents)
             }
             let total = conversations.reduce(0) { $0 + $1.tokens }
             return WorkspaceUsageEntry(id: "example-project-\(project)", name: names[project],
@@ -84,12 +99,27 @@ enum DocumentationFixture {
         let day = ISO8601DateFormatter().string(from: date).prefix(10)
         // Examples contain an intentionally quiet week before today's tasks.
         let tokens = index == 29 ? 1_200_000 : (index >= 23 ? 0 : (index % 5 + 1) * 120_000)
-        return .init(id: String(day), day: String(day.suffix(5)), total: tokens,
-                     uncachedInput: tokens / 5, cachedInput: tokens * 3 / 5,
-                     output: tokens / 10, reasoning: tokens / 10,
-                     estimatedCostUSD: ranking(total: tokens).estimatedCostUSD,
-                     referencePricedModelCount: tokens > 0 ? ranking(total: tokens).referencePricedModelCount : 0,
-                     modelEntries: tokens > 0 ? ranking(total: tokens).entries : [])
+        var usage = DailyUsage(id: String(day), day: String(day.suffix(5)), total: tokens,
+                               uncachedInput: tokens / 5, cachedInput: tokens * 3 / 5,
+                               output: tokens / 10, reasoning: tokens / 10,
+                               estimatedCostUSD: ranking(total: tokens).estimatedCostUSD,
+                               referencePricedModelCount: tokens > 0 ? ranking(total: tokens).referencePricedModelCount : 0,
+                               modelEntries: tokens > 0 ? ranking(total: tokens).entries : [])
+        if index == 29 {
+            usage.quotaStatistics = DailyQuotaStatistics(
+                changes: [
+                    .init(id: "quota-initial", observedAt: now.addingTimeInterval(-7_200), remaining: 0.72,
+                          reason: "首次观测"),
+                    .init(id: "quota-consumed-1", observedAt: now.addingTimeInterval(-3_600), remaining: 0.70,
+                          reason: "额度消耗"),
+                    .init(id: "quota-consumed-2", observedAt: now, remaining: 0.68,
+                          reason: "额度消耗")
+                ],
+                consumedPercentagePoints: 4,
+                matchedTokens: 1_200_000
+            )
+        }
+        return usage
     }
 
     static let snapshot: DashboardSnapshot = {

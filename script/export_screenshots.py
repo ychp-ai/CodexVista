@@ -61,7 +61,12 @@ def main():
         (app / "Contents/Info.plist").write_bytes(plistlib.dumps(info))
         output = stage / "output"
         output.mkdir()
-        subprocess.run(["open", "-n", "-W", str(app), "--args", str(output)], check=True, timeout=180)
+        try:
+            subprocess.run(["open", "-n", "-W", str(app), "--args", str(output)], check=True, timeout=300)
+        except subprocess.TimeoutExpired as error:
+            progress = output / "progress.txt"
+            last_capture = progress.read_text() if progress.exists() else "尚未开始渲染"
+            raise RuntimeError(f"Screenshot app timed out; last capture: {last_capture}") from error
         if not (output / "complete.json").exists():
             raise RuntimeError("Screenshot app did not finish; existing documentation images were preserved")
         captures = json.loads((output / "complete.json").read_text())

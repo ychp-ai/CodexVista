@@ -1,6 +1,6 @@
 # 文档截图与复现
 
-更新日期：2026-09-16。README、功能说明和外观说明共用本目录的图片；当前图片来自工作区的 SwiftUI / AppKit 组件，使用固定日期的匿名示例数据，不包含真实任务、项目路径、会话内容或本机用量。
+更新日期：2026-09-18。README、功能说明和外观说明共用本目录的图片；当前图片来自工作区的 SwiftUI / AppKit 组件，使用固定日期的匿名示例数据，不包含真实任务、项目路径、会话内容或本机用量。
 
 ## 一次性导出
 
@@ -33,9 +33,9 @@ python3 script/export_screenshots.py
 | 菜单栏与刘海 | [状态栏](codexvista-status-bar.png)、[刘海摘要](codexvista-notch-summary.png)、[用量弹窗](codexvista-popover.png) |
 | 看板四个分析页 | [今日任务](codexvista-today-tasks.png)、[用量趋势](codexvista-dashboard.png)、[Skills / Tools](codexvista-activity-usage.png)、[项目用量](codexvista-project-usage.png) |
 | 看板状态 | [加载骨架](codexvista-loading.png)、[空数据](codexvista-empty.png) |
-| 项目详情 | [概览](codexvista-project-overview.png)、[任务明细](codexvista-task-details.png)、[回复明细](codexvista-reply-details.png)、[趋势节点](codexvista-project-trend-hover.png) |
+| 项目详情 | [概览](codexvista-project-overview.png)、[任务与子 agent 明细](codexvista-task-details.png)、[回复明细](codexvista-reply-details.png)、[趋势节点](codexvista-project-trend-hover.png) |
 | 任务与回复调用 | [任务调用](codexvista-task-activity-detail.png)、[回复调用](codexvista-reply-activity-detail.png)、[今日任务详情](codexvista-today-task-detail.png)、[今日任务回复调用](codexvista-today-task-reply-hover.png) |
-| 趋势和日历 | [趋势节点](codexvista-trend-hover.png)、[展开模型明细](codexvista-trend-hover-details.png)、[日期明细](codexvista-calendar-day-hover.png)、[图例明细](codexvista-calendar-legend-hover.png) |
+| 趋势和日历 | [趋势节点与额度估算](codexvista-trend-hover.png)、[展开模型明细](codexvista-trend-hover-details.png)、[日期明细](codexvista-calendar-day-hover.png)、[图例明细](codexvista-calendar-legend-hover.png) |
 | Skill 细分 | [命名空间调用构成](codexvista-skill-breakdown-hover.png) |
 | 模型 | [前五名预览](codexvista-model-preview.png)、[完整排行](codexvista-model-hover-details.png)、[Token 明细](codexvista-model-token-hover-details.png)、[费用明细](codexvista-model-cost-hover-details.png)、[价格目录](codexvista-model-pricing-popover.png) |
 | 设置分区 | [外观、看板与摘要](codexvista-settings-appearance.png)、[额度提醒](codexvista-settings-reminders.png)、[数据与更新](codexvista-settings-data.png)、[订阅与套餐](codexvista-settings-plans.png) |

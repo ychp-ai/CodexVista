@@ -182,6 +182,7 @@ enum DocumentationCapture {
 
     static func capture<V: View>(_ path: String, title: String, width: CGFloat,
                                  height: CGFloat? = nil, _ content: V) throws {
+        try path.write(to: output.appendingPathComponent("progress.txt"), atomically: true, encoding: .utf8)
         let dark = AppColorSchemePreference.load() == .dark
         let view = VStack(spacing: 0) {
             HStack {
