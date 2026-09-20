@@ -6,6 +6,7 @@ struct DashboardSnapshot: Sendable {
     let periods: [PeriodUsage]
     let subscriptionCycle: SubscriptionCycle?
     let quotas: [QuotaSnapshot]
+    let quotaHistory: QuotaHistorySnapshot
     let models: [ModelUsage]
     let dailyUsage: [DailyUsage]
     let subscriptionCycleUsage: [DailyUsage]
@@ -20,6 +21,7 @@ struct DashboardSnapshot: Sendable {
         periods: [PeriodUsage],
         subscriptionCycle: SubscriptionCycle? = nil,
         quotas: [QuotaSnapshot],
+        quotaHistory: QuotaHistorySnapshot = .empty,
         models: [ModelUsage],
         dailyUsage: [DailyUsage],
         subscriptionCycleUsage: [DailyUsage] = [],
@@ -33,6 +35,7 @@ struct DashboardSnapshot: Sendable {
         self.periods = periods
         self.subscriptionCycle = subscriptionCycle
         self.quotas = quotas
+        self.quotaHistory = quotaHistory
         self.models = models
         self.dailyUsage = dailyUsage
         self.subscriptionCycleUsage = subscriptionCycleUsage
@@ -873,5 +876,64 @@ struct DailyUsage: Identifiable, Sendable {
         self.unpricedModelCount = unpricedModelCount
         self.referencePricedModelCount = referencePricedModelCount
         self.modelEntries = modelEntries
+    }
+}
+
+struct QuotaHistorySnapshot: Sendable {
+    struct Point: Identifiable, Sendable {
+        let id: String
+        let observedAt: Date
+        let remaining: Double
+        let segment: Int
+    }
+
+    let start: Date
+    let end: Date
+    let points: [Point]
+    static let empty = QuotaHistorySnapshot(start: .distantPast, end: .distantPast, points: [])
+
+    static func make(events: [StoredQuotaEvent], now: Date) -> Self {
+        let start = now.addingTimeInterval(-7 * 24 * 60 * 60)
+        let groups = Dictionary(grouping: events.filter {
+            let time = Date(timeIntervalSince1970: Double($0.observation.observedAtMilliseconds) / 1_000)
+            return $0.observation.kind == .weekly && $0.observation.windowMinutes == 10_080 &&
+                time >= start && time <= now
+        }, by: { $0.observation.observedAtMilliseconds })
+        var points: [Point] = []
+        var segment = 0
+        var previousReset: Int64?
+        for timestamp in groups.keys.sorted() {
+            let group = groups[timestamp]!.sorted { $0.fingerprint < $1.fingerprint }
+            let event = group[0]
+            let observation = event.observation
+            guard observation.remaining.isFinite, (0...1).contains(observation.remaining),
+                  let reset = observation.resetsAtMilliseconds, reset > timestamp,
+                  group.allSatisfy({
+                      $0.observation.remaining == observation.remaining &&
+                      $0.observation.plan == observation.plan &&
+                      $0.observation.resetsAtMilliseconds.map {
+                          $0 > timestamp && abs(Double($0) - Double(reset)) <= 60_000
+                      } == true
+                  }) else {
+                segment += 1
+                previousReset = nil
+                continue
+            }
+            if let previousReset, timestamp >= previousReset { segment += 1 }
+            let point = Point(id: event.fingerprint,
+                observedAt: Date(timeIntervalSince1970: Double(timestamp) / 1_000),
+                remaining: observation.remaining, segment: segment)
+            // Preserve both ends of flat runs and every change, without plotting identical interiors.
+            if points.count >= 2,
+               points[points.count - 2].segment == segment,
+               points[points.count - 2].remaining == point.remaining,
+               points.last?.remaining == point.remaining {
+                points[points.count - 1] = point
+            } else {
+                points.append(point)
+            }
+            previousReset = reset
+        }
+        return Self(start: start, end: now, points: points)
     }
 }

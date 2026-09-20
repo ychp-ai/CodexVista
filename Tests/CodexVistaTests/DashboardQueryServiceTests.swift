@@ -87,6 +87,37 @@ final class DashboardQueryServiceTests: XCTestCase {
         XCTAssertNil(second.quotaStatistics?.tokensPerPercent)
     }
 
+    func testQuotaHistoryRetainsSevenDaysAcrossExpiredCycles() {
+        let history = QuotaHistorySnapshot.make(events: [
+            quotaSample(99, 0.9), quotaSample(100, 0.8, reset: 200),
+            quotaSample(150, 0.2, reset: 200), quotaSample(201, 0.95, reset: 700_000),
+            quotaSample(604_900, 0.6, reset: 700_000), quotaSample(604_901, 0.5, reset: 700_000)
+        ], now: Date(timeIntervalSince1970: 604_900))
+        XCTAssertEqual(history.start, Date(timeIntervalSince1970: 100))
+        XCTAssertEqual(history.points.map(\.remaining), [0.8, 0.2, 0.95, 0.6])
+        XCTAssertEqual(history.points.map(\.segment), [0, 0, 1, 1])
+    }
+
+    func testQuotaHistoryCompressesOnlyFlatInteriorsAndKeepsRecovery() {
+        let history = QuotaHistorySnapshot.make(events: [
+            quotaSample(1, 0.8), quotaSample(2, 0.8), quotaSample(3, 0.8),
+            quotaSample(3, 0.8, reset: 200_001, id: "duplicate"),
+            quotaSample(4, 0.7), quotaSample(5, 0.9), quotaSample(6, 0.6)
+        ], now: Date(timeIntervalSince1970: 10))
+        XCTAssertEqual(history.points.map(\.remaining), [0.8, 0.8, 0.7, 0.9, 0.6])
+        XCTAssertEqual(history.points.map { $0.observedAt.timeIntervalSince1970 }, [1, 3, 4, 5, 6])
+    }
+
+    func testQuotaHistoryBreaksAtConflictsAndInvalidObservations() {
+        let history = QuotaHistorySnapshot.make(events: [
+            quotaSample(1, 0.8), quotaSample(2, 0.7), quotaSample(2, 0.6, id: "conflict"),
+            quotaSample(3, 0.5), quotaSample(4, 0.4, reset: 4), quotaSample(5, 0.3)
+        ], now: Date(timeIntervalSince1970: 10))
+        XCTAssertEqual(history.points.map(\.remaining), [0.8, 0.5, 0.3])
+        XCTAssertEqual(history.points.map(\.segment), [0, 1, 2])
+        XCTAssertTrue(QuotaHistorySnapshot.make(events: [], now: .now).points.isEmpty)
+    }
+
     private func quotaSample(_ seconds: Int64, _ remaining: Double, reset: Int64 = 200_000, id: String? = nil) -> StoredQuotaEvent {
         StoredQuotaEvent(
             fingerprint: id ?? "quota-\(seconds)", threadID: "test-thread",

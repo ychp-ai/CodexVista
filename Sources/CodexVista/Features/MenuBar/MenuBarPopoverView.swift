@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import Charts
 
 enum MenuBarAvailabilityText {
     static func text(for state: DashboardLoadState) -> String {
@@ -162,9 +163,6 @@ struct MenuBarPopoverView: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(updateStatusTitle)
                     .font(.caption.weight(.medium))
-                Text(verbatim: "当前版本 v\(updateService.currentVersion)")
-                    .font(.caption2)
-                    .foregroundStyle(CodexVistaTheme.dashboardMutedText)
             }
 
             Spacer(minLength: 8)
@@ -172,15 +170,8 @@ struct MenuBarPopoverView: View {
             updateStatusControl
         }
         .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(
-            CodexVistaTheme.dashboardControlBackground.opacity(0.58),
-            in: RoundedRectangle(cornerRadius: CodexVistaTheme.cornerRadius(10), style: .continuous)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: CodexVistaTheme.cornerRadius(10), style: .continuous)
-                .stroke(CodexVistaTheme.dashboardBorder)
-        }
+        .padding(.vertical, 4)
+        .help("当前版本 v\(updateService.currentVersion)")
     }
 
     @ViewBuilder
@@ -259,6 +250,7 @@ struct MenuBarPopoverView: View {
             unavailableCard(content)
         } else {
             usageCard
+            todayCard
         }
     }
 
@@ -356,19 +348,21 @@ struct MenuBarPopoverView: View {
                     .background(availabilityColor.opacity(0.12), in: Capsule())
             }
 
-            quotaAndTodaySummary
+            quotaSection
 
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Text("今日构成")
-                    Spacer()
-                    Text(store.snapshot == nil ? "暂无数据" : "按今日总量")
-                }
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-                TokenCompositionView(breakdown: store.snapshot?.breakdown,
-                                     total: store.snapshot?.todayTokens)
-            }
+            Divider().overlay(CodexVistaTheme.dashboardBorder)
+
+            MenuBarQuotaHistoryChart(history: store.snapshot?.quotaHistory ?? .empty)
+        }
+        .dashboardCard(padding: 14)
+    }
+
+    private var todayCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            wideTodaySummary
+            TokenCompositionView(breakdown: store.snapshot?.breakdown,
+                                 total: store.snapshot?.todayTokens,
+                                 compact: true)
         }
         .dashboardCard(padding: 14)
     }
@@ -409,50 +403,6 @@ struct MenuBarPopoverView: View {
             .foregroundStyle(CodexVistaTheme.dashboardMutedText)
             .help("退出 CodexVista")
         }
-    }
-
-    private var quotaAndTodaySummary: some View {
-        let quotaCount = store.snapshot?.visibleQuotas.count ?? 0
-
-        return Group {
-            switch MenuBarSummaryLayout.layout(forQuotaCount: quotaCount) {
-            case .sideBySide:
-                HStack(alignment: .top, spacing: 10) {
-                    quotaSection
-
-                    Rectangle()
-                        .fill(CodexVistaTheme.dashboardBorder)
-                        .frame(width: 1, height: 58)
-
-                    compactTodaySummary
-                }
-            case .stacked:
-                VStack(spacing: 9) {
-                    quotaSection
-
-                    Rectangle()
-                        .fill(CodexVistaTheme.dashboardBorder)
-                        .frame(height: 1)
-
-                    wideTodaySummary
-                }
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(CodexVistaTheme.dashboardSurface, in: RoundedRectangle(cornerRadius: CodexVistaTheme.cornerRadius(10)))
-    }
-
-    private var compactTodaySummary: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("今日 Token")
-                .font(.caption)
-                .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-
-            todayTokenValue
-                .frame(maxWidth: .infinity, alignment: .center)
-        }
-        .frame(width: 84, height: 58, alignment: .top)
     }
 
     private var wideTodaySummary: some View {
@@ -567,6 +517,98 @@ struct MenuBarPopoverView: View {
             .orange
         case .loading, .empty, .loaded:
             CodexVistaTheme.popoverPrimary
+        }
+    }
+}
+
+struct MenuBarQuotaHistoryChart: View {
+    let history: QuotaHistorySnapshot
+    @State private var hoveredDate: Date?
+
+    private var selected: QuotaHistorySnapshot.Point? {
+        guard let hoveredDate else { return nil }
+        return history.points.min {
+            abs($0.observedAt.timeIntervalSince(hoveredDate)) < abs($1.observedAt.timeIntervalSince(hoveredDate))
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("近 7 天额度变化")
+                    .font(CodexVistaTheme.headingFont(size: 12))
+                Spacer()
+                Text("剩余 %")
+                    .font(.system(size: 10))
+                    .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+            }
+            Group {
+                if history.points.isEmpty {
+                    Text("近 7 天暂无额度观测")
+                        .font(.caption)
+                        .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    Chart {
+                        ForEach(history.points) { point in
+                            LineMark(
+                                x: .value("时间", point.observedAt),
+                                y: .value("剩余额度", point.remaining * 100),
+                                series: .value("观测段", point.segment)
+                            )
+                            .interpolationMethod(.stepEnd)
+                            .foregroundStyle(CodexVistaTheme.dashboardAccent)
+                            PointMark(x: .value("时间", point.observedAt), y: .value("剩余额度", point.remaining * 100))
+                                .symbolSize(7)
+                                .foregroundStyle(CodexVistaTheme.dashboardAccent)
+                        }
+                        if let selected {
+                            RuleMark(x: .value("时间", selected.observedAt))
+                                .foregroundStyle(CodexVistaTheme.dashboardMutedText.opacity(0.5))
+                            PointMark(x: .value("时间", selected.observedAt), y: .value("剩余额度", selected.remaining * 100))
+                                .symbolSize(30)
+                                .foregroundStyle(CodexVistaTheme.dashboardAccent)
+                        }
+                    }
+                    .chartXScale(domain: history.start...history.end)
+                    .chartYScale(domain: 0...100)
+                    .chartYAxis {
+                        AxisMarks(position: .leading, values: [0, 50, 100]) { value in
+                            AxisGridLine()
+                            AxisValueLabel { Text("\(value.as(Int.self) ?? 0)%").font(.system(size: 9)) }
+                        }
+                    }
+                    .chartXAxis {
+                        AxisMarks(values: .stride(by: .day, count: 2)) { _ in
+                            AxisValueLabel(format: .dateTime.month().day())
+                                .font(.system(size: 9))
+                        }
+                    }
+                    .chartOverlay { proxy in
+                        GeometryReader { geometry in
+                            Rectangle().fill(.clear).contentShape(Rectangle())
+                                .onContinuousHover { phase in
+                                    switch phase {
+                                    case .active(let location):
+                                        guard let plot = proxy.plotFrame else { return }
+                                        let frame = geometry[plot]
+                                        hoveredDate = frame.contains(location)
+                                            ? proxy.value(atX: location.x - frame.minX, as: Date.self) : nil
+                                    case .ended:
+                                        hoveredDate = nil
+                                    }
+                                }
+                        }
+                    }
+                }
+            }
+            .frame(height: 120)
+            Text(selected.map {
+                $0.observedAt.formatted(.dateTime.month().day().hour().minute()) + " · 剩余 " + TokenFormatter.percentage($0.remaining)
+            } ?? "本地观测 · 悬停查看时间与额度")
+                .font(.system(size: 9))
+                .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+                .lineLimit(1)
         }
     }
 }

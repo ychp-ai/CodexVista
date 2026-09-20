@@ -278,16 +278,18 @@ final class DashboardQueryService: @unchecked Sendable {
             allTime: try modelRanking(from: historicalRows)
         )
 
+        let quotaHistory = try store.quotaHistory().filter { $0.observation.observedAtMilliseconds <= nowMilliseconds }
         return DashboardSnapshot(
             planName: resolvedPlanName(from: allRows),
             updatedText: "刚刚刷新",
             periods: periods,
             subscriptionCycle: subscriptionCycle,
             quotas: quotaResult.quotas,
+            quotaHistory: .make(events: quotaHistory, now: now),
             models: try models(from: sevenDayRows),
             dailyUsage: try dailyUsage(
                 from: trendRows,
-                quotaEvents: try store.quotaHistory().filter { $0.observation.observedAtMilliseconds <= nowMilliseconds },
+                quotaEvents: quotaHistory,
                 minimumStart: usageThirtyDayStart,
                 through: usageTodayStart,
                 calendar: resolvedUsageCalendar
