@@ -1,6 +1,6 @@
 {
-  "source_commit": "b6fc51b6976ded633657cf8f42f920a4134de01c",
-  "source_sha256": "cb204f6f5b3c3813b177071c5bf971c329defc4274e52f412299ec738afe8d35",
+  "source_commit": "578fc57c387ef9790c2463d329e734e96c922026",
+  "source_sha256": "5b07d0f97c9207209a3f0ca5e54f9016e332a73314f1b9153b005e3a7181af18",
   "fixture_date": "2026-09-04T08:00:00Z",
   "method": "Current SwiftUI/AppKit components, isolated documentation app, synthetic data; no live Codex reads",
   "scale": 2,
@@ -174,11 +174,11 @@
       "sha256": "faded1d7198d69866111a6ec49253a9585cd4c0d22f7deb82c27db0a1919d2ee"
     },
     {
-      "height": 988,
+      "height": 1306,
       "path": "codexvista-popover.png",
       "title": "菜单栏弹窗",
       "width": 780,
-      "sha256": "2159557c12d70394780b7132688edb704d7c4b5dadc37b776f23404e6b4d981c"
+      "sha256": "9c36175157b67150d2ba6682ad3ad0772dfeee1c1b6cdec63160fc07e4d0e267"
     },
     {
       "height": 2338,
@@ -199,7 +199,7 @@
       "path": "codexvista-settings-data.png",
       "title": "数据与软件更新",
       "width": 1480,
-      "sha256": "526925c7dc52bb19fe575f7bceec95dca295007a67771ebcd4fae60810fcdaaa"
+      "sha256": "882f8eed2d853e907e080d4bcadec1392ac931d6f5a7fc2c13cd04b1b69347b6"
     },
     {
       "height": 1530,
@@ -213,7 +213,7 @@
       "path": "codexvista-settings.png",
       "title": "全部设置",
       "width": 1480,
-      "sha256": "e017e880ca9eb7737f4e3974ec1152aa12d4df04ac75021d4979861250eb2699"
+      "sha256": "ed8801e22b330242cfd0401cdc57df722568a5b5af8f1c87157f4e31159bca70"
     },
     {
       "height": 224,
@@ -367,7 +367,7 @@
       "path": "codexvista-loading.png",
       "title": "首次载入",
       "width": 2120,
-      "sha256": "3d36d4ec720e53f5b81c29b9eccb4a861255cabf5742a4db054e6c04e5495b3a"
+      "sha256": "46179c8f7eb4be1ab6545b663bfc1096ffd0bc5f8a25895ada13779a73e6e013"
     },
     {
       "height": 984,

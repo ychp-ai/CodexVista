@@ -171,7 +171,7 @@ struct MenuBarPopoverView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 4)
-        .help("当前版本 v\(updateService.currentVersion)")
+        .help(Text(verbatim: "当前版本 v\(updateService.currentVersion)"))
     }
 
     @ViewBuilder

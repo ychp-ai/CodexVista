@@ -139,6 +139,16 @@ enum DocumentationFixture {
                                                   end: now.addingTimeInterval(2 * 86_400)),
             quotas: [.init(id: "7d", title: "7 天额度", remaining: 0.68, resetText: "2 天后",
                            resetsAt: now.addingTimeInterval(2 * 86_400), observedAt: now)],
+            quotaHistory: QuotaHistorySnapshot(
+                start: now.addingTimeInterval(-7 * 86_400),
+                end: now,
+                points: [0.92, 0.88, 0.81, 0.76, 0.76, 0.72, 0.68].enumerated().map { index, remaining in
+                    .init(id: "example-quota-\(index)",
+                          observedAt: now.addingTimeInterval(Double(index - 6) * 86_400),
+                          remaining: remaining,
+                          segment: 0)
+                }
+            ),
             models: [], dailyUsage: daily,
             activityRankings: .init(today: activity, sevenDays: activity, thirtyDays: activity, allTime: activity),
             workspaceUsage: .init(today: workspaceRanking, sevenDays: workspaceRanking,
