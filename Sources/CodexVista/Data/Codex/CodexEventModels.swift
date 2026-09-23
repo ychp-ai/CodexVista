@@ -183,6 +183,12 @@ protocol RepositoryIdentityResolving: Sendable {
     func repositoryID(forWorkingDirectory workingDirectory: String) -> String?
 }
 
+// Background imports only use repository metadata already present in Codex records.
+// Inspecting recorded working directories can trigger macOS Files and Folders prompts.
+struct CodexMetadataRepositoryIdentityResolver: RepositoryIdentityResolving {
+    func repositoryID(forWorkingDirectory workingDirectory: String) -> String? { nil }
+}
+
 struct GitRepositoryIdentityResolver: RepositoryIdentityResolving {
     private let executableURL: URL
     private let commandTimeout: DispatchTimeInterval

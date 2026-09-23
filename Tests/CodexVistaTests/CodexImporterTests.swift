@@ -342,6 +342,46 @@ final class CodexImporterTests: XCTestCase {
         )
     }
 
+    func testDefaultImporterDoesNotInspectSessionWorkingDirectory() async throws {
+        let fixture = try CodexFixture.make(events: [.sessionCLI])
+        let workingDirectory = fixture.codexRoot.appending(path: "private-project")
+        let gitDirectory = workingDirectory.appending(path: ".git")
+        let fileManager = FileManager.default
+        try fileManager.createDirectory(
+            at: gitDirectory.appending(path: "objects"), withIntermediateDirectories: true
+        )
+        try fileManager.createDirectory(
+            at: gitDirectory.appending(path: "refs/heads"), withIntermediateDirectories: true
+        )
+        try Data("ref: refs/heads/main\n".utf8)
+            .write(to: gitDirectory.appending(path: "HEAD"))
+        try Data("[core]\n\trepositoryformatversion = 0\n\tbare = false\n[remote \"origin\"]\n\turl = https://example.invalid/private-project.git\n".utf8)
+            .write(to: gitDirectory.appending(path: "config"))
+        XCTAssertNotNil(GitRepositoryIdentityResolver().repositoryID(
+            forWorkingDirectory: workingDirectory.path
+        ))
+        try fixture.appendRaw("""
+            {"type":"session_meta","payload":{"id":"\(CodexFixture.threadID)","source":"cli","cli_version":"1.0.0","cwd":"\(workingDirectory.path)"}}
+            """ + "\n")
+        try fixture.append(.turnInWorkspace(
+            model: "gpt-synthetic", roots: [workingDirectory.path]
+        ))
+        try fixture.append(.token(
+            input: 100, cached: 40, output: 20, reasoning: 5, plan: "plus"
+        ))
+        let store = try UsageStore(databaseURL: fixture.databaseURL)
+
+        let result = await CodexImporter(rootURL: fixture.codexRoot, store: store)
+            .refresh(scope: .history)
+
+        XCTAssertTrue(result.isSuccessful)
+        XCTAssertNil(try store.usageEvents().first?.project.repositoryID)
+        XCTAssertEqual(
+            try store.usageEvents().first?.workspace,
+            WorkspaceIdentity.resolve(rootPaths: [workingDirectory.path])
+        )
+    }
+
     func testImporterPrefersEmbeddedRepositoryIdentityOverWorkingDirectoryFallback() async throws {
         let fixture = try CodexFixture.make(events: [
             .sessionCLIWithRepository,

@@ -101,7 +101,7 @@ actor CodexImporter {
         discovery: CodexSourceDiscovery = CodexSourceDiscovery(),
         reader: IncrementalJSONLReader = IncrementalJSONLReader(),
         decoder: CodexEventDecoder = CodexEventDecoder(),
-        repositoryResolver: any RepositoryIdentityResolving = GitRepositoryIdentityResolver(),
+        repositoryResolver: any RepositoryIdentityResolving = CodexMetadataRepositoryIdentityResolver(),
         calendar: Calendar = .current
     ) {
         self.rootURL = rootURL

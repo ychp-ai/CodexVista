@@ -106,9 +106,11 @@ CodexVista 是第三方本地工具，并非 OpenAI 官方产品。
 
 ![外观、看板与状态栏设置：六款皮肤预览、色系、关闭行为和刘海选项](docs/images/codexvista-settings-appearance.png)
 
-模型费用说明列出 8 个模型：GPT-6 Astra、GPT-5.6 Sol / Terra / Luna、GPT-5.5、GPT-5.4 / Mini 和 GPT-5.3 Codex Spark。前 7 个按公开 API 价格估算，Spark 暂无公开 API 定价，明确标为 GPT-5.5 参考估算。
+模型费用说明列出 10 个模型：GPT-6 Astra / Sol / Luna、GPT-5.6 Sol / Terra / Luna、GPT-5.5、GPT-5.4 / Mini 和 GPT-5.3 Codex Spark。前 9 个按公开 API 价格估算，Spark 暂无公开 API 定价，明确标为 GPT-5.5 参考估算。
 
 GPT-6 Astra 于 2026-09-07 按[官方定价](https://developers.openai.com/api/docs/models/gpt-6-astra)收录：每百万 Token 输入 $10、缓存输入 $1、输出及推理 $50。模型排行、任务、回复和订阅周期均使用该单价重新估算历史用量。
+
+GPT-6 Sol 和 Luna 于 2026-09-23 按[官方模型定价](https://developers.openai.com/api/docs/models/compare)补充：Sol 每百万 Token 的输入 / 缓存输入 / 输出为 $2 / $0.20 / $10，Luna 为 $0.10 / $0.01 / $0.50。推理 Token 按输出价估算；长上下文与缓存写入等附加计费无法从本机聚合记录准确还原，因此不计入估算。
 
 设置还提供额度提醒、来源健康状态、自动刷新、清空并重抓、软件更新、第一次订阅时间、套餐与模型费用说明。分区截图见[功能说明](docs/FEATURES.md#提醒与个性化设置)，完整内容见[设置长图](docs/images/codexvista-settings.png)。
 
@@ -164,7 +166,7 @@ CodexVista 只读取统计所需的最小字段，包括 Token 计数、额度�
 - 工具输入、工具输出、文件内容或项目代码；
 - `auth.json` 等认证文件的内容。
 
-项目路径和 Git 元数据仅用于本地身份识别，不保存或上传原始 remote 和完整路径；数据库中只保留派生 ID、哈希指纹、安全名称和目录数量。
+项目路径和 Codex 记录自带的 Git 元数据仅用于本地身份识别；应用不会为识别仓库而主动访问记录中的项目目录。数据库中只保留派生 ID、哈希指纹、安全名称和目录数量，不保存或上传原始 remote 和完整路径。
 
 整理后的统计与导入进度只保存在：
 

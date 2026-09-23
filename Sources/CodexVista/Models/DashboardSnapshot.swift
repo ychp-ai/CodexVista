@@ -887,10 +887,24 @@ struct QuotaHistorySnapshot: Sendable {
         let segment: Int
     }
 
+    struct Bridge: Identifiable, Sendable {
+        let start: Point
+        let end: Point
+
+        var id: String { "\(start.id)-\(end.id)" }
+    }
+
     let start: Date
     let end: Date
     let points: [Point]
     static let empty = QuotaHistorySnapshot(start: .distantPast, end: .distantPast, points: [])
+
+    var bridges: [Bridge] {
+        guard points.count > 1 else { return [] }
+        return zip(points, points.dropFirst()).compactMap { start, end in
+            start.segment == end.segment ? nil : Bridge(start: start, end: end)
+        }
+    }
 
     static func make(events: [StoredQuotaEvent], now: Date) -> Self {
         let start = now.addingTimeInterval(-7 * 24 * 60 * 60)

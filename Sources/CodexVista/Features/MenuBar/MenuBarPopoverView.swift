@@ -550,6 +550,24 @@ struct MenuBarQuotaHistoryChart: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     Chart {
+                        ForEach(history.bridges) { bridge in
+                            LineMark(
+                                x: .value("时间", bridge.start.observedAt),
+                                y: .value("剩余额度", bridge.start.remaining * 100),
+                                series: .value("观测间隔", bridge.id)
+                            )
+                            .interpolationMethod(.linear)
+                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                            .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+                            LineMark(
+                                x: .value("时间", bridge.end.observedAt),
+                                y: .value("剩余额度", bridge.end.remaining * 100),
+                                series: .value("观测间隔", bridge.id)
+                            )
+                            .interpolationMethod(.linear)
+                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                            .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+                        }
                         ForEach(history.points) { point in
                             LineMark(
                                 x: .value("时间", point.observedAt),
@@ -605,7 +623,7 @@ struct MenuBarQuotaHistoryChart: View {
             .frame(height: 120)
             Text(selected.map {
                 $0.observedAt.formatted(.dateTime.month().day().hour().minute()) + " · 剩余 " + TokenFormatter.percentage($0.remaining)
-            } ?? "本地观测 · 悬停查看时间与额度")
+            } ?? "本地观测 · 虚线表示观测间隔")
                 .font(.system(size: 9))
                 .foregroundStyle(CodexVistaTheme.dashboardMutedText)
                 .lineLimit(1)

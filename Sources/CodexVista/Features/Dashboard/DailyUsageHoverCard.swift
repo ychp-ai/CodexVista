@@ -84,7 +84,7 @@ struct DailyUsageHoverCard: View {
                         Image(systemName: showsQuotaChanges ? "chevron.down" : "chevron.right")
                             .foregroundStyle(CodexVistaTheme.dashboardMutedText)
                             .accessibilityHidden(true)
-                        Text("额度变动记录 · UTC（\(statistics.changes.count)）")
+                        Text("额度变动记录 · 本地时间（\(statistics.changes.count)）")
                         Spacer(minLength: 0)
                     }
                     .font(.system(size: 10))
@@ -102,7 +102,7 @@ struct DailyUsageHoverCard: View {
                             VStack(alignment: .leading, spacing: 6) {
                                 ForEach(statistics.changes.reversed()) { change in
                                     HStack {
-                                        Text(change.observedAt.formatted(Date.FormatStyle(date: .omitted, time: .standard, timeZone: TimeZone(secondsFromGMT: 0)!)))
+                                        Text(change.observedAt.formatted(Date.FormatStyle(timeZone: .autoupdatingCurrent).month(.twoDigits).day(.twoDigits).hour().minute().second()))
                                         Text(change.reason)
                                         Spacer(minLength: 4)
                                         Text("剩余 " + TokenFormatter.percentage(change.remaining))
