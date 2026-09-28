@@ -423,6 +423,33 @@ final class DashboardStoreTests: XCTestCase {
         XCTAssertTrue(store.isAutomaticRefreshEnabled)
     }
 
+    func testAutomaticRefreshPublishesNewUsageWhenQuotaIsUnchanged() async {
+        let sleeper = SuspendedSleeper()
+        let quota = QuotaSnapshot(
+            id: "7d", title: "7 天", remaining: 0.75, resetText: "稍后重置"
+        )
+        let initial = DashboardSnapshot.fixture(todayTokens: 10, quotas: [quota])
+        let latest = DashboardSnapshot.fixture(todayTokens: 25, quotas: [quota])
+        let client = FakeDashboardDataClient(
+            loadResult: .loaded(initial, .fixture),
+            refreshResults: [.loaded(initial, .fixture), .loaded(latest, .fixture)],
+            backfillResult: .loaded(initial, .fixture)
+        )
+        let store = DashboardStore(
+            client: client,
+            usageRefreshInterval: .seconds(60),
+            sleeper: { duration in try await sleeper.sleep(for: duration) }
+        )
+
+        await store.start()
+        await eventually { await sleeper.callCount == 1 }
+        await sleeper.resumeNext()
+        await eventually { await client.refreshCount == 2 && store.snapshot?.todayTokens == 25 }
+
+        XCTAssertEqual(store.snapshot?.weeklyQuota?.remaining, 0.75)
+        XCTAssertEqual(store.snapshot?.todayTokens, 25)
+    }
+
     func testOlderBackfillResultDoesNotOverwriteNewerForegroundRefresh() async {
         let sleeper = SuspendedSleeper()
         let client = FakeDashboardDataClient(
@@ -501,6 +528,11 @@ final class DashboardStoreTests: XCTestCase {
         XCTAssertEqual(summary.index, .missing)
         XCTAssertNil(summary.lastSuccessfulRefresh)
         XCTAssertTrue(FileManager.default.fileExists(atPath: databaseURL.path))
+
+        guard case let .empty(refreshedSummary) = try await client.refreshUsage() else {
+            return XCTFail("Expected successful refresh with no new records")
+        }
+        XCTAssertEqual(refreshedSummary.lastSuccessfulRefresh, Date(timeIntervalSince1970: 1_000))
     }
 
     func testLiveClientLoadsLocalWeeklyQuota() async throws {
@@ -913,6 +945,12 @@ private actor SuspendedSleeper {
         }
     }
 
+    func resumeNext() {
+        guard let id = continuations.keys.first,
+              let continuation = continuations.removeValue(forKey: id) else { return }
+        continuation.resume()
+    }
+
     private func cancel(id: UUID) {
         guard let continuation = continuations.removeValue(forKey: id) else { return }
         cancellationCount += 1
@@ -951,7 +989,11 @@ private extension SourceSummary {
 }
 
 private extension DashboardSnapshot {
-    static func fixture(todayTokens: Int, updatedText: String = "已刷新") -> DashboardSnapshot {
+    static func fixture(
+        todayTokens: Int,
+        updatedText: String = "已刷新",
+        quotas: [QuotaSnapshot] = []
+    ) -> DashboardSnapshot {
         DashboardSnapshot(
             planName: "Plus",
             updatedText: updatedText,
@@ -973,7 +1015,7 @@ private extension DashboardSnapshot {
                     uncachedInput: todayTokens, cachedInput: 0, output: 0, reasoning: 0
                 )
             ],
-            quotas: [], models: [], dailyUsage: []
+            quotas: quotas, models: [], dailyUsage: []
         )
     }
 }

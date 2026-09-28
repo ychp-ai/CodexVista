@@ -113,7 +113,8 @@ actor LiveDashboardDataClient: DashboardDataClient {
             indexHealth: importResult.indexHealth,
             discoveredFileIDs: importResult.discoveredFileIDs,
             issues: importResult.issues,
-            processedFileCount: importResult.processedFileCount
+            processedFileCount: importResult.processedFileCount,
+            refreshAtMilliseconds: Int64(now().timeIntervalSince1970 * 1_000)
         )
         return try await makeResult(importResult: importResult)
     }

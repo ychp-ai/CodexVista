@@ -861,7 +861,8 @@ final class UsageStore: @unchecked Sendable {
         indexHealth: CodexIndexHealth,
         discoveredFileIDs: [String]?,
         issues: [ImportIssue],
-        processedFileCount: Int
+        processedFileCount: Int,
+        refreshAtMilliseconds: Int64? = nil
     ) throws {
         try database.inTransaction {
             let indexState: String
@@ -1005,11 +1006,15 @@ final class UsageStore: @unchecked Sendable {
                 fileState = "clean"
                 fileDetail = nil
             }
+            let lastSuccessfulRefresh = fileState == "clean"
+                ? [historicalLastSuccess, previousLastSuccess, refreshAtMilliseconds]
+                    .compactMap { $0 }.max()
+                : historicalLastSuccess ?? previousLastSuccess
             try upsertSourceStatus(
                 sourceKind: "files",
                 state: fileState,
                 detail: fileDetail,
-                lastSuccessAtMilliseconds: historicalLastSuccess ?? previousLastSuccess,
+                lastSuccessAtMilliseconds: lastSuccessfulRefresh,
                 processedFileCount: processedFileCount
             )
         }
