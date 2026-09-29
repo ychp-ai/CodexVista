@@ -574,7 +574,7 @@ struct MenuBarQuotaHistoryChart: View {
                                 y: .value("剩余额度", point.remaining * 100),
                                 series: .value("观测段", point.segment)
                             )
-                            .interpolationMethod(.stepEnd)
+                            .interpolationMethod(.monotone)
                             .foregroundStyle(CodexVistaTheme.dashboardAccent)
                             PointMark(x: .value("时间", point.observedAt), y: .value("剩余额度", point.remaining * 100))
                                 .symbolSize(7)
