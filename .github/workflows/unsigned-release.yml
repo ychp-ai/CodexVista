@@ -120,7 +120,8 @@ jobs:
           -configuration Debug
           -destination 'platform=macOS'
           -derivedDataPath "$DERIVED_DATA"
-          CODE_SIGNING_ALLOWED=NO
+          CODE_SIGNING_ALLOWED=YES
+          CODE_SIGN_IDENTITY='-'
           test
 
       - name: Build Release app
@@ -131,7 +132,8 @@ jobs:
           -configuration Release
           -destination 'platform=macOS'
           -derivedDataPath "$DERIVED_DATA"
-          CODE_SIGNING_ALLOWED=NO
+          CODE_SIGNING_ALLOWED=YES
+          CODE_SIGN_IDENTITY='-'
           ARCHS='arm64 x86_64'
           ONLY_ACTIVE_ARCH=NO
           build
@@ -139,12 +141,10 @@ jobs:
       - name: Create unsigned DMG
         run: |
           APP_PATH="$DERIVED_DATA/Build/Products/Release/CodexVista.app"
-          test -d "$APP_PATH"
-          ARCHITECTURES="$(lipo -archs "$APP_PATH/Contents/MacOS/CodexVista")"
-          [[ " $ARCHITECTURES " == *" arm64 "* ]]
-          [[ " $ARCHITECTURES " == *" x86_64 "* ]]
+          bash script/verify_release_app.sh "$APP_PATH"
           mkdir -p dist dmg-root
           ditto "$APP_PATH" "dmg-root/CodexVista.app"
+          bash script/verify_release_app.sh "dmg-root/CodexVista.app"
           ln -s /Applications dmg-root/Applications
           hdiutil create -volname "CodexVista" -srcfolder dmg-root -ov -format UDZO "dist/$ARTIFACT_NAME"
           (

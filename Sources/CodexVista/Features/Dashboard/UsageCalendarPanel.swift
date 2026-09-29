@@ -1,189 +1,6 @@
 import Foundation
 import SwiftUI
 
-struct UsageCalendarCell: Identifiable {
-    let id: String
-    let date: Date
-    let dayNumber: Int
-    let isInDisplayedMonth: Bool
-    let isFuture: Bool
-    let isToday: Bool
-    let usage: DailyUsage?
-}
-
-struct UsageCalendarModel {
-    let calendar: Calendar
-    let today: Date
-    let earliestMonth: Date
-    let latestMonth: Date
-
-    private let usageByID: [String: DailyUsage]
-
-    init(usage: [DailyUsage], calendar: Calendar = .current, today: Date = Date()) {
-        var normalizedCalendar = calendar
-        normalizedCalendar.firstWeekday = 2
-        self.calendar = normalizedCalendar
-        self.today = normalizedCalendar.startOfDay(for: today)
-
-        var indexedUsage: [String: DailyUsage] = [:]
-        for item in usage {
-            indexedUsage[item.id] = item
-        }
-        usageByID = indexedUsage
-
-        let currentMonth = Self.monthStart(for: today, calendar: normalizedCalendar)
-        latestMonth = currentMonth
-        let earliestUsageDate = usage
-            .filter { $0.total > 0 }
-            .compactMap { Self.date(forID: $0.id, calendar: normalizedCalendar) }
-            .min()
-        let candidate = earliestUsageDate.map {
-            Self.monthStart(for: $0, calendar: normalizedCalendar)
-        } ?? currentMonth
-        earliestMonth = min(candidate, currentMonth)
-    }
-
-    func cells(for month: Date) -> [UsageCalendarCell] {
-        let displayedMonth = clampedMonth(month)
-        let weekday = calendar.component(.weekday, from: displayedMonth)
-        let leadingDays = (weekday - calendar.firstWeekday + 7) % 7
-        guard let gridStart = calendar.date(
-            byAdding: .day,
-            value: -leadingDays,
-            to: displayedMonth
-        ) else {
-            return []
-        }
-
-        let displayedComponents = calendar.dateComponents([.year, .month], from: displayedMonth)
-        return (0..<42).compactMap { offset in
-            guard let date = calendar.date(byAdding: .day, value: offset, to: gridStart) else {
-                return nil
-            }
-            let day = calendar.startOfDay(for: date)
-            let components = calendar.dateComponents([.year, .month, .day], from: day)
-            guard let dayNumber = components.day else { return nil }
-            let id = Self.dayID(for: day, calendar: calendar)
-            return UsageCalendarCell(
-                id: id,
-                date: day,
-                dayNumber: dayNumber,
-                isInDisplayedMonth: components.year == displayedComponents.year
-                    && components.month == displayedComponents.month,
-                isFuture: calendar.compare(day, to: today, toGranularity: .day) == .orderedDescending,
-                isToday: calendar.isDate(day, inSameDayAs: today),
-                usage: usageByID[id]
-            )
-        }
-    }
-
-    func clampedMonth(_ month: Date) -> Date {
-        let start = Self.monthStart(for: month, calendar: calendar)
-        return min(max(start, earliestMonth), latestMonth)
-    }
-
-    func movingMonth(_ month: Date, by offset: Int) -> Date {
-        guard let candidate = calendar.date(
-            byAdding: .month,
-            value: offset,
-            to: Self.monthStart(for: month, calendar: calendar)
-        ) else {
-            return clampedMonth(month)
-        }
-        return clampedMonth(candidate)
-    }
-
-    func canMoveMonth(_ month: Date, by offset: Int) -> Bool {
-        let current = Self.monthStart(for: month, calendar: calendar)
-        guard let candidate = calendar.date(byAdding: .month, value: offset, to: current) else {
-            return false
-        }
-        return candidate >= earliestMonth && candidate <= latestMonth
-    }
-
-    static func intensity(total: Int, maximum: Int) -> Int {
-        guard total > 0, maximum > 0 else { return 0 }
-        let normalized = sqrt(Double(total) / Double(maximum))
-        switch normalized {
-        case ..<0.25: return 1
-        case ..<0.50: return 2
-        case ..<0.75: return 3
-        default: return 4
-        }
-    }
-
-    static func intensityRange(level: Int, maximum: Int) -> ClosedRange<Int>? {
-        guard (1...4).contains(level), maximum > 0 else { return nil }
-
-        func firstTotal(atLeast targetLevel: Int) -> Int {
-            var lower = 1
-            var upper = maximum
-            while lower < upper {
-                let middle = lower + (upper - lower) / 2
-                if intensity(total: middle, maximum: maximum) >= targetLevel {
-                    upper = middle
-                } else {
-                    lower = middle + 1
-                }
-            }
-            return lower
-        }
-
-        let lowerBound = firstTotal(atLeast: level)
-        guard intensity(total: lowerBound, maximum: maximum) == level else {
-            return nil
-        }
-
-        let upperBound = level == 4
-            ? maximum
-            : firstTotal(atLeast: level + 1) - 1
-        guard lowerBound <= upperBound else { return nil }
-        return lowerBound...upperBound
-    }
-
-    static func date(forID id: String, calendar: Calendar) -> Date? {
-        let parts = id.split(separator: "-")
-        guard parts.count == 3,
-              let year = Int(parts[0]),
-              let month = Int(parts[1]),
-              let day = Int(parts[2]) else {
-            return nil
-        }
-        var components = DateComponents()
-        components.calendar = calendar
-        components.timeZone = calendar.timeZone
-        components.year = year
-        components.month = month
-        components.day = day
-        components.hour = 12
-        guard let date = calendar.date(from: components) else { return nil }
-        return calendar.startOfDay(for: date)
-    }
-
-    static func monthStart(for date: Date, calendar: Calendar) -> Date {
-        let components = calendar.dateComponents([.year, .month], from: date)
-        var startComponents = DateComponents()
-        startComponents.calendar = calendar
-        startComponents.timeZone = calendar.timeZone
-        startComponents.year = components.year
-        startComponents.month = components.month
-        startComponents.day = 1
-        startComponents.hour = 12
-        let midday = calendar.date(from: startComponents) ?? date
-        return calendar.startOfDay(for: midday)
-    }
-
-    private static func dayID(for date: Date, calendar: Calendar) -> String {
-        let components = calendar.dateComponents([.year, .month, .day], from: date)
-        return String(
-            format: "%04d-%02d-%02d",
-            components.year ?? 0,
-            components.month ?? 0,
-            components.day ?? 0
-        )
-    }
-}
-
 struct UsageCalendarPanel: View {
     private static let weekdays = ["一", "二", "三", "四", "五", "六", "日"]
 
@@ -192,15 +9,15 @@ struct UsageCalendarPanel: View {
     let today: Date
     let isEmbedded: Bool
 
+    @State private var showsWeeks = false
     @State private var displayedMonth: Date
-    @State private var hoveredUsageID: DailyUsage.ID?
-    @State private var hoverDismissTask: Task<Void, Never>?
-    @State private var hoveredLegendLevel: Int?
+    @State private var selectedUsageID: DailyUsage.ID?
+    @State private var selectedLegendLevel: Int?
     @State private var isShowingModelDetails = false
 
     init(
         usage: [DailyUsage],
-        calendar: Calendar = .current,
+        calendar: Calendar = CodexUsageCalendar.utc,
         today: Date = Date(),
         isEmbedded: Bool = false
     ) {
@@ -223,23 +40,25 @@ struct UsageCalendarPanel: View {
     var body: some View {
         let month = model.clampedMonth(displayedMonth)
         let cells = model.cells(for: month)
-        let maximum = cells
+        let weeks = model.weeks(for: month)
+        let maximum = showsWeeks ? (weeks.filter { !$0.isFuture }.map(\.usage.total).max() ?? 0) : cells
             .filter { $0.isInDisplayedMonth && !$0.isFuture }
             .compactMap(\.usage?.total)
             .max() ?? 0
 
         Group {
             if isEmbedded {
-                calendarContent(month: month, cells: cells, maximum: maximum)
+                calendarContent(month: month, cells: cells, weeks: weeks, maximum: maximum)
             } else {
-                calendarContent(month: month, cells: cells, maximum: maximum)
+                calendarContent(month: month, cells: cells, weeks: weeks, maximum: maximum)
                     .dashboardPanel(padding: 14)
             }
         }
         .onDisappear {
-            hoverDismissTask?.cancel()
-            hoveredUsageID = nil
-            isShowingModelDetails = false
+            resetSelection()
+        }
+        .onChange(of: showsWeeks) { _, _ in
+            resetSelection()
         }
         .onChange(of: usage.first?.id) { _, _ in
             displayedMonth = model.clampedMonth(displayedMonth)
@@ -249,15 +68,28 @@ struct UsageCalendarPanel: View {
     private func calendarContent(
         month: Date,
         cells: [UsageCalendarCell],
+        weeks: [UsageCalendarWeek],
         maximum: Int
     ) -> some View {
         VStack(spacing: 7) {
             calendarHeader(month)
-            weekdayHeader
-
-            LazyVGrid(columns: columns, spacing: 4) {
-                ForEach(cells) { cell in
-                    dayCell(cell, maximum: maximum)
+            if showsWeeks {
+                Text("周一至周日 · UTC · 跨月按整周汇总")
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+                    .frame(height: 14)
+                VStack(spacing: 4) {
+                    ForEach(weeks) { week in
+                        weekRow(week, maximum: maximum)
+                    }
+                }
+                .frame(height: 182, alignment: .top)
+            } else {
+                weekdayHeader
+                LazyVGrid(columns: columns, spacing: 4) {
+                    ForEach(cells) { cell in
+                        dayCell(cell, maximum: maximum)
+                    }
                 }
             }
 
@@ -271,7 +103,16 @@ struct UsageCalendarPanel: View {
             Label("用量日历", systemImage: "calendar")
                 .font(CodexVistaTheme.headingFont(size: 14))
 
-            Spacer(minLength: 4)
+            Picker("统计维度", selection: $showsWeeks) {
+                Text("日").tag(false)
+                Text("周").tag(true)
+            }
+            .pickerStyle(.segmented)
+            .controlSize(.mini)
+            .labelsHidden()
+            .frame(width: 64)
+
+            Spacer(minLength: 0)
 
             monthButton(systemImage: "chevron.left", offset: -1, month: month)
 
@@ -289,9 +130,7 @@ struct UsageCalendarPanel: View {
     private func monthButton(systemImage: String, offset: Int, month: Date) -> some View {
         Button {
             withAnimation(.easeOut(duration: 0.16)) {
-                hoverDismissTask?.cancel()
-                isShowingModelDetails = false
-                hoveredUsageID = nil
+                resetSelection()
                 displayedMonth = model.movingMonth(month, by: offset)
             }
         } label: {
@@ -345,24 +184,72 @@ struct UsageCalendarPanel: View {
         if cell.isInDisplayedMonth,
            !cell.isFuture,
            let item = cell.usage {
-            base
-                .onHover { active in
-                    updateUsageHover(active, id: item.id)
-                }
+            Button {
+                selectUsage(item.id)
+            } label: {
+                base.contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            }
+                .buttonStyle(UsageCalendarButtonStyle(isSelected: selectedUsageID == item.id))
                 .popover(
-                    isPresented: hoverBinding(for: item.id),
+                    isPresented: selectionBinding(for: item.id),
                     attachmentAnchor: .rect(.bounds),
                     arrowEdge: .bottom
                 ) {
                     DailyUsageHoverCard(usage: item, dateText: item.id, showsModelDetails: $isShowingModelDetails)
                         .padding(4)
-                        .onHover { updateUsageHover($0, id: item.id) }
                 }
                 .accessibilityLabel("\(item.id)，Token \(item.total)")
+                .accessibilityHint("点击查看用量明细，点击外部关闭")
         } else {
             base
                 .accessibilityLabel(cell.isFuture ? "\(cell.dayNumber)日，未来日期" : "\(cell.dayNumber)日")
         }
+    }
+
+    private func weekRow(_ week: UsageCalendarWeek, maximum: Int) -> some View {
+        let level = UsageCalendarModel.intensity(total: week.usage.total, maximum: maximum)
+        return Button {
+            selectUsage(week.id)
+        } label: {
+            HStack(spacing: 6) {
+                Text(week.dateRangeText)
+                if week.isCurrentWeek {
+                    Text("本周 · 截至今日")
+                        .font(.system(size: 8))
+                }
+                Spacer(minLength: 0)
+                Text(week.isFuture ? "未开始" : TokenFormatter.compact(week.usage.total))
+                    .fontWeight(.semibold)
+            }
+            .font(.system(size: 10, weight: .medium, design: .rounded))
+            .monospacedDigit()
+            .padding(.horizontal, 8)
+            .frame(height: 27)
+            .foregroundStyle(week.isFuture ? CodexVistaTheme.dashboardMutedText :
+                (level == 4 ? CodexVistaTheme.heatmapText : CodexVistaTheme.dashboardPrimaryText))
+            .background(level > 0 ? heatColor(level: level) : CodexVistaTheme.dashboardAccent.opacity(0.055),
+                        in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .stroke(week.isCurrentWeek ? CodexVistaTheme.dashboardAccent : CodexVistaTheme.dashboardBorder,
+                            lineWidth: week.isCurrentWeek ? 1.5 : 0.7)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(UsageCalendarButtonStyle(isSelected: selectedUsageID == week.id))
+        .disabled(week.isFuture)
+        .popover(isPresented: selectionBinding(for: week.id), attachmentAnchor: .rect(.bounds), arrowEdge: .bottom) {
+            DailyUsageHoverCard(usage: week.usage, dateText: week.detailTitle, showsModelDetails: $isShowingModelDetails)
+                .padding(4)
+        }
+        .accessibilityLabel("\(week.detailTitle)，\(week.isFuture ? "未来日期" : "Token \(week.usage.total)")")
+        .accessibilityHint(week.isFuture ? "" : "点击查看周用量明细，点击外部关闭")
+    }
+
+    private func resetSelection() {
+        selectedUsageID = nil
+        selectedLegendLevel = nil
+        isShowingModelDetails = false
     }
 
     private func heatLegend(maximum: Int) -> some View {
@@ -373,19 +260,21 @@ struct UsageCalendarPanel: View {
                 .foregroundStyle(CodexVistaTheme.dashboardMutedText)
 
             ForEach(1...4, id: \.self) { level in
-                RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .fill(heatColor(level: level))
-                    .frame(width: 16, height: 10)
-                    .contentShape(Rectangle())
-                    .onHover { active in
-                        if active {
-                            hoveredLegendLevel = level
-                        } else if hoveredLegendLevel == level {
-                            hoveredLegendLevel = nil
-                        }
-                    }
+                Button {
+                    resetSelection()
+                    selectedLegendLevel = level
+                } label: {
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .fill(heatColor(level: level))
+                        .frame(width: 16, height: 10)
+                        .contentShape(Rectangle())
+                }
+                    .buttonStyle(UsageCalendarButtonStyle(
+                        isSelected: selectedLegendLevel == level,
+                        cornerRadius: 3
+                    ))
                     .popover(
-                        isPresented: legendHoverBinding(for: level),
+                        isPresented: legendSelectionBinding(for: level),
                         attachmentAnchor: .rect(.bounds),
                         arrowEdge: .bottom
                     ) {
@@ -393,11 +282,13 @@ struct UsageCalendarPanel: View {
                             level: level,
                             range: UsageCalendarModel.intensityRange(level: level, maximum: maximum),
                             maximum: maximum,
+                            unit: showsWeeks ? "周" : "日",
                             color: heatColor(level: level)
                         )
                         .padding(4)
                     }
                     .accessibilityLabel(legendAccessibilityLabel(level: level, maximum: maximum))
+                    .accessibilityHint("点击查看用量区间")
             }
 
             Text("高")
@@ -433,42 +324,29 @@ struct UsageCalendarPanel: View {
         CodexVistaTheme.dashboardAccent.opacity(CodexVistaTheme.skin.calendarOpacity(for: level))
     }
 
-    private func updateUsageHover(_ active: Bool, id: DailyUsage.ID) {
-        hoverDismissTask?.cancel()
-        guard !isShowingModelDetails else { return }
-        if active {
-            hoveredUsageID = id
-        } else {
-            hoverDismissTask = Task { @MainActor in
-                do {
-                    try await Task.sleep(for: .milliseconds(250))
-                } catch {
-                    return
-                }
-                if !isShowingModelDetails, hoveredUsageID == id { hoveredUsageID = nil }
-            }
-        }
+    private func selectUsage(_ id: DailyUsage.ID) {
+        resetSelection()
+        selectedUsageID = id
     }
 
-    private func hoverBinding(for id: DailyUsage.ID) -> Binding<Bool> {
+    private func selectionBinding(for id: DailyUsage.ID) -> Binding<Bool> {
         Binding(
-            get: { hoveredUsageID == id },
+            get: { selectedUsageID == id },
             set: { isPresented in
-                if !isPresented, hoveredUsageID == id {
-                    hoverDismissTask?.cancel()
+                if !isPresented, selectedUsageID == id {
                     isShowingModelDetails = false
-                    hoveredUsageID = nil
+                    selectedUsageID = nil
                 }
             }
         )
     }
 
-    private func legendHoverBinding(for level: Int) -> Binding<Bool> {
+    private func legendSelectionBinding(for level: Int) -> Binding<Bool> {
         Binding(
-            get: { hoveredLegendLevel == level },
+            get: { selectedLegendLevel == level },
             set: { isPresented in
-                if !isPresented, hoveredLegendLevel == level {
-                    hoveredLegendLevel = nil
+                if !isPresented, selectedLegendLevel == level {
+                    selectedLegendLevel = nil
                 }
             }
         )
@@ -487,10 +365,38 @@ struct UsageCalendarPanel: View {
     }
 }
 
+private struct UsageCalendarButtonStyle: ButtonStyle {
+    let isSelected: Bool
+    var cornerRadius: CGFloat = 6
+
+    @Environment(\.isEnabled) private var isEnabled
+    @State private var isHovered = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        let isHighlighted = isEnabled && (isHovered || isSelected || configuration.isPressed)
+        configuration.label
+            .brightness(isEnabled && configuration.isPressed ? -0.08 : 0)
+            .overlay {
+                // A light inner edge and dark outer edge stay visible on every heatmap color.
+                ZStack {
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .strokeBorder(Color.black.opacity(0.8), lineWidth: 3)
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .inset(by: 1.5)
+                        .strokeBorder(Color.white, lineWidth: 1.5)
+                }
+                    .opacity(isHighlighted ? 1 : 0)
+                    .allowsHitTesting(false)
+            }
+            .onHover { isHovered = $0 }
+    }
+}
+
 private struct UsageHeatLegendHoverCard: View {
     let level: Int
     let range: ClosedRange<Int>?
     let maximum: Int
+    var unit: String = "日"
     let color: Color
 
     private var rangeText: String {
@@ -518,7 +424,7 @@ private struct UsageHeatLegendHoverCard: View {
                 .monospacedDigit()
 
             Text(maximum > 0
-                 ? "本月峰值 \(TokenFormatter.compact(maximum)) · 平衡分级"
+                 ? "本月\(unit)峰值 \(TokenFormatter.compact(maximum)) · 平衡分级"
                  : "本月暂无 Token 用量")
                 .font(.system(size: 9, weight: .medium))
                 .foregroundStyle(CodexVistaTheme.dashboardMutedText)

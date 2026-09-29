@@ -355,6 +355,7 @@ Guardian 的“命令权限检查”属于内部任务：其 Token 保留在工�
 - 30 日：包含今日的最近 30 个统计日。
 - 当前订阅周期：用户设置第一次订阅时间后，以该本地日历日期和时刻为锚点逐月计算；月末日期自动落在目标月的最后一天，查询范围从本周期起点精确到当前时刻。
 - 累计：全部已导入事件。
+- 用量日历支持日 / 周切换，默认按日展示；周视图按 UTC 周一至周日汇总所有与当前月份相交的完整周，跨月和跨年周保留相邻月份的数据，本周排除未来日期。日单元格、周行和热力图例仅在点击后打开浮层，悬停仅显示深色外缘与白色内缘的双层描边，确保深浅色块均可辨识；鼠标移出不关闭浮层，点击外部关闭，切换月份或日 / 周维度时清除选中状态。热力等级按当前月份所展示的日 / 周峰值计算。周明细累加四类 Token 和已有费用，按模型去重合并并重算占比；额度统计仅合并有效的日内样本，以累计匹配 Token / 累计消耗百分点计算加权比值，不建立跨日或跨重置窗口的新样本。
 - 趋势和日历：按日汇总四类 Token，并复用模型排行聚合计算每个日期的模型构成、API 等值费用及参考价标记。日期悬浮明细按模型用量降序展示，模型较多时可滚动查看。7 天、30 天和订阅周期趋势以独立曲线展示总量及各模型，复用相同的聚合与定价规则；缺失模型日期补零。模型颜色在时间范围切换时保持一致，图例控制显隐，悬浮先选择最近日期，再选择纵向最近的可见曲线，节点使用原生浮层展示四类 Token 与等值费用。
 - 模型占比、活动排行、工作区/任务/回复用量、关联目录、回复级 Skill / 工具调用，以及按模型聚合的 Token 构成与 API 等值费用估算。
 - 7 天最新可信额度。
@@ -498,7 +499,7 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
 ./script/build_and_run.sh --verify
 ```
 
-发布前还需验证 Release Universal Binary 同时含有 `arm64` 和 `x86_64`。
+发布前运行 `bash script/verify_release_app.sh <CodexVista.app>`，验证 Release Universal Binary 同时含有 `arm64` 和 `x86_64`，且完整 App 在所有架构上通过严格签名验证，代码签名标识与 Bundle ID 均为 `com.ychp.CodexVista`。
 
 ## 18. 构建与发布
 
@@ -510,7 +511,7 @@ GitHub Actions 手动发布流程：
 2. 工作流从当前提交读取统一版本配置，正式版生成 `v<版本>`，预发布版生成 `v<版本>-beta`，无需手工填写 Tag。
 3. 校验运行分支、语义化版本、正整数构建号以及 Xcode 的实际构建设置，并默认拒绝覆盖已有同版本 Release。
 4. 在 macOS 26 runner 上运行测试。
-5. 使用 `ARCHS='arm64 x86_64'` 和 `ONLY_ACTIVE_ARCH=NO` 构建 Release，并使用 `lipo` 校验两种架构。
+5. 使用 `ARCHS='arm64 x86_64'`、`ONLY_ACTIVE_ARCH=NO`、`CODE_SIGNING_ALLOWED=YES` 和 `CODE_SIGN_IDENTITY='-'` 构建 Release。通过 `script/verify_release_app.sh` 校验两种架构及完整 App 的临时签名；复制到 DMG 暂存目录后再次验证。
 6. 创建包含 `CodexVista.app` 与 Applications 快捷方式的压缩 DMG。
 7. 为 DMG 生成独立 SHA-256 校验文件，文件内容只引用 DMG 文件名，便于下载后直接校验。
 8. 根据手动输入的版本亮点生成结构化中文版本说明，包含安装、芯片支持、未签名打开方式、附件、已知限制和完整变更链接。
@@ -532,6 +533,8 @@ xattr -dr com.apple.quarantine /Applications/CodexVista.app
 ```
 
 正式无警告分发需要 Apple Developer Program、Developer ID Application 签名和公证。
+
+不得通过 `CODE_SIGNING_ALLOWED=NO` 跳过完整 App 签名：链接器自动生成的 Mach-O 临时签名没有绑定 Info.plist 与资源，签名标识也可能退化为可执行文件名。已观察到这种安装包导致 TCC 反复报告 `Failed to match existing code requirement`，同一进程刚获准访问文稿目录便再次弹窗。完整 ad-hoc 签名用于保证单个构建的完整性和权限身份匹配，不保证不同构建之间沿用授权；需要跨版本稳定身份时应引入正式证书，不得将指定要求放宽为仅匹配 Bundle ID 来绕过系统验证。
 
 ## 19. 关键设计演进
 

@@ -466,6 +466,115 @@ final class TokenFormatterTests: XCTestCase {
         )
     }
 
+    func testUsageCalendarWeeksIncludeFullCrossYearWeekAndMergeDetails() throws {
+        let calendar = CodexUsageCalendar.utc
+        let today = try XCTUnwrap(UsageCalendarModel.date(forID: "2026-01-15", calendar: calendar))
+        func day(_ id: String, multiplier: Int, percent: Double) -> DailyUsage {
+            let model = ModelUsageEntry(
+                model: "gpt-5.5", totalTokens: 100 * multiplier,
+                uncachedInputTokens: 40 * multiplier, cachedInputTokens: 30 * multiplier,
+                visibleOutputTokens: 20 * multiplier, reasoningTokens: 10 * multiplier,
+                share: 1, estimatedCostUSD: Double(multiplier)
+            )
+            var usage = DailyUsage(
+                id: id, day: id, total: 100 * multiplier,
+                uncachedInput: 40 * multiplier, cachedInput: 30 * multiplier,
+                output: 20 * multiplier, reasoning: 10 * multiplier,
+                estimatedCostUSD: Double(multiplier), modelEntries: [model]
+            )
+            usage.quotaStatistics = DailyQuotaStatistics(
+                changes: [DailyQuotaChange(id: id,
+                    observedAt: UsageCalendarModel.date(forID: id, calendar: calendar)!,
+                    remaining: 0.5, reason: "消耗")],
+                consumedPercentagePoints: percent, matchedTokens: Double(100 * multiplier)
+            )
+            return usage
+        }
+        let model = UsageCalendarModel(usage: [
+            day("2026-01-04", multiplier: 3, percent: 1),
+            day("2025-12-29", multiplier: 1, percent: 1),
+            day("2026-01-05", multiplier: 9, percent: 1)
+        ], calendar: calendar, today: today)
+        let week = try XCTUnwrap(model.weeks(for: today).first)
+        XCTAssertEqual(week.startID, "2025-12-29")
+        XCTAssertEqual(week.endID, "2026-01-04")
+        XCTAssertEqual(week.usage.total, 400)
+        XCTAssertEqual(week.usage.uncachedInput, 160)
+        XCTAssertEqual(week.usage.cachedInput, 120)
+        XCTAssertEqual(week.usage.output, 80)
+        XCTAssertEqual(week.usage.reasoning, 40)
+        XCTAssertEqual(week.usage.estimatedCostUSD, 4)
+        XCTAssertEqual(week.usage.modelEntries.count, 1)
+        XCTAssertEqual(week.usage.modelEntries.first?.totalTokens, 400)
+        XCTAssertEqual(week.usage.modelEntries.first?.share, 1)
+        XCTAssertEqual(week.usage.quotaStatistics?.tokensPerPercent, 200)
+        XCTAssertEqual(week.usage.quotaStatistics?.changes.map(\.id), ["2025-12-29", "2026-01-04"])
+        let december = try XCTUnwrap(UsageCalendarModel.date(forID: "2025-12-01", calendar: calendar))
+        XCTAssertEqual(model.weeks(for: december).last?.usage.total, week.usage.total)
+        XCTAssertEqual(model.weeks(for: december).last?.id, week.id)
+    }
+
+    func testUsageCalendarCurrentWeekExcludesFutureAndKeepsEmptyWeeks() throws {
+        let calendar = CodexUsageCalendar.utc
+        let today = try XCTUnwrap(UsageCalendarModel.date(forID: "2026-09-29", calendar: calendar))
+        let model = UsageCalendarModel(usage: [
+            DailyUsage(id: "2026-09-28", day: "9/28", total: 10),
+            DailyUsage(id: "2026-09-29", day: "9/29", total: 20),
+            DailyUsage(id: "2026-09-30", day: "9/30", total: 999),
+            DailyUsage(id: "2026-10-01", day: "10/1", total: 999)
+        ], calendar: calendar, today: today)
+        let weeks = model.weeks(for: today)
+        XCTAssertEqual(weeks.count, 5)
+        XCTAssertEqual(weeks.last?.startID, "2026-09-28")
+        XCTAssertEqual(weeks.last?.endID, "2026-10-04")
+        XCTAssertEqual(weeks.last?.usage.total, 30)
+        XCTAssertEqual(weeks.last?.isCurrentWeek, true)
+        XCTAssertEqual(weeks.first?.usage.total, 0)
+        XCTAssertNil(weeks.first?.usage.estimatedCostUSD)
+
+        let early = try XCTUnwrap(UsageCalendarModel.date(forID: "2026-09-01", calendar: calendar))
+        let empty = UsageCalendarModel(usage: [], calendar: calendar, today: early).weeks(for: early)
+        XCTAssertEqual(empty.filter(\.isFuture).count, 4)
+        XCTAssertTrue(empty.allSatisfy { $0.usage.total == 0 })
+    }
+
+    func testUsageCalendarWeeklyModelsHaveRecomputedSharesAndDistinctPricingCounts() throws {
+        let calendar = CodexUsageCalendar.utc
+        let today = try XCTUnwrap(UsageCalendarModel.date(forID: "2026-09-29", calendar: calendar))
+        let unknown = ModelUsageEntry(model: "future-model", totalTokens: 40,
+            uncachedInputTokens: 40, cachedInputTokens: 0, visibleOutputTokens: 0,
+            reasoningTokens: 0, share: 0.4, estimatedCostUSD: 1)
+        let unpriced = ModelUsageEntry(model: "unpriced", totalTokens: 60,
+            uncachedInputTokens: 60, cachedInputTokens: 0, visibleOutputTokens: 0,
+            reasoningTokens: 0, share: 0.6, estimatedCostUSD: nil)
+        let days = ["2026-09-28", "2026-09-29"].map {
+            DailyUsage(id: $0, day: $0, total: 100, uncachedInput: 100,
+                estimatedCostUSD: 1, unpricedModelCount: 1, referencePricedModelCount: 1,
+                modelEntries: [unknown, unpriced])
+        }
+        let week = try XCTUnwrap(UsageCalendarModel(usage: days, calendar: calendar, today: today)
+            .weeks(for: today).last)
+        XCTAssertEqual(week.usage.unpricedModelCount, 1)
+        XCTAssertEqual(week.usage.referencePricedModelCount, 1)
+        XCTAssertEqual(week.usage.modelEntries.map(\.totalTokens), [120, 80])
+        XCTAssertEqual(week.usage.modelEntries.map(\.share), [0.6, 0.4])
+        XCTAssertEqual(week.usage.estimatedCostUSD, 2)
+        XCTAssertNil(week.usage.modelEntries.first?.estimatedCostUSD)
+    }
+
+    func testUsageCalendarWeeksHandleFourAndSixWeekMonthsAndUTCDateBoundary() throws {
+        let calendar = CodexUsageCalendar.utc
+        let february = try XCTUnwrap(UsageCalendarModel.date(forID: "2027-02-28", calendar: calendar))
+        XCTAssertEqual(UsageCalendarModel(usage: [], today: february).weeks(for: february).count, 4)
+        let august = try XCTUnwrap(UsageCalendarModel.date(forID: "2026-08-31", calendar: calendar))
+        XCTAssertEqual(UsageCalendarModel(usage: [], today: august).weeks(for: august).count, 6)
+        // Monday in Shanghai is still Sunday in UTC.
+        let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-09-27T18:00:00Z"))
+        let model = UsageCalendarModel(usage: [], today: now)
+        XCTAssertEqual(model.weeks(for: now).first(where: \.isCurrentWeek)?.endID, "2026-09-27")
+        XCTAssertEqual(model.weeks(for: now).last?.isFuture, true)
+    }
+
     func testUsageCalendarIntensityUsesBalancedSquareRootScale() {
         XCTAssertEqual(UsageCalendarModel.intensity(total: 0, maximum: 1_000_000), 0)
         XCTAssertEqual(UsageCalendarModel.intensity(total: 10, maximum: 1_000_000), 1)
