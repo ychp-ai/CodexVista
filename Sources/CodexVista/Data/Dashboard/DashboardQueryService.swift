@@ -285,7 +285,7 @@ final class DashboardQueryService: @unchecked Sendable {
             periods: periods,
             subscriptionCycle: subscriptionCycle,
             quotas: quotaResult.quotas,
-            quotaHistory: .make(events: quotaHistory, now: now),
+            quotaHistory: .make(events: quotaHistory, usageRows: trendRows, now: now),
             models: try models(from: sevenDayRows),
             dailyUsage: try dailyUsage(
                 from: trendRows,
@@ -1848,10 +1848,9 @@ enum DailyQuotaCalculator {
             let changedReset = windowReference.map { !sameResetWindow($0, observation) } ?? false
             let changedWindow = changedPlan || changedReset
             if windowReference == nil || changedWindow { windowReference = observation }
-            if previous == nil || changedWindow || previous?.remaining != observation.remaining {
-                let reason = previous == nil ? "首次观测" : changedPlan ? "套餐变化" :
-                    changedReset ? "重置时间变化" :
-                    observation.remaining > previous!.remaining ? "额度回升" : "额度消耗"
+            if let previous, previous.remaining != observation.remaining {
+                let reason = changedPlan ? "套餐变化" : changedReset ? "重置时间变化" :
+                    observation.remaining > previous.remaining ? "额度回升" : "额度消耗"
                 result[day, default: DailyQuotaStatistics()].changes.append(DailyQuotaChange(
                     id: group[0].fingerprint, observedAt: date,
                     remaining: observation.remaining, reason: reason

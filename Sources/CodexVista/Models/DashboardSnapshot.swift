@@ -880,11 +880,28 @@ struct DailyUsage: Identifiable, Sendable {
 }
 
 struct QuotaHistorySnapshot: Sendable {
+    struct PointChange: Sendable {
+        let quotaDecreasePercentagePoints: Double
+        let tokenIncrease: Int64
+    }
+
     struct Point: Identifiable, Sendable {
         let id: String
         let observedAt: Date
         let remaining: Double
         let segment: Int
+        let cycle: Int
+        let tokens: Int64
+
+        init(id: String, observedAt: Date, remaining: Double, segment: Int,
+             cycle: Int = 0, tokens: Int64 = 0) {
+            self.id = id
+            self.observedAt = observedAt
+            self.remaining = remaining
+            self.segment = segment
+            self.cycle = cycle
+            self.tokens = tokens
+        }
     }
 
     struct Bridge: Identifiable, Sendable {
@@ -899,6 +916,22 @@ struct QuotaHistorySnapshot: Sendable {
     let points: [Point]
     static let empty = QuotaHistorySnapshot(start: .distantPast, end: .distantPast, points: [])
 
+    var chartDomain: ClosedRange<Date> {
+        let firstObservation = points.first?.observedAt ?? start
+        return firstObservation...max(end, firstObservation.addingTimeInterval(1))
+    }
+
+    func changeFromPrevious(at index: Int) -> PointChange? {
+        guard points.indices.contains(index), index > 0 else { return nil }
+        let previous = points[index - 1]
+        let current = points[index]
+        guard previous.cycle == current.cycle else { return nil }
+        return PointChange(
+            quotaDecreasePercentagePoints: (previous.remaining - current.remaining) * 100,
+            tokenIncrease: max(0, current.tokens - previous.tokens)
+        )
+    }
+
     var bridges: [Bridge] {
         guard points.count > 1 else { return [] }
         return zip(points, points.dropFirst()).compactMap { start, end in
@@ -906,7 +939,13 @@ struct QuotaHistorySnapshot: Sendable {
         }
     }
 
-    static func make(events: [StoredQuotaEvent], now: Date) -> Self {
+    func today(in calendar: Calendar = .current, now: Date = .now) -> Self {
+        let dayStart = calendar.startOfDay(for: now)
+        return Self(start: dayStart, end: max(now, dayStart.addingTimeInterval(1)),
+                    points: points.filter { $0.observedAt >= dayStart && $0.observedAt <= now })
+    }
+
+    static func make(events: [StoredQuotaEvent], usageRows: [StoredUsageQueryRow] = [], now: Date) -> Self {
         let start = now.addingTimeInterval(-7 * 24 * 60 * 60)
         let groups = Dictionary(grouping: events.filter {
             let time = Date(timeIntervalSince1970: Double($0.observation.observedAtMilliseconds) / 1_000)
@@ -915,8 +954,22 @@ struct QuotaHistorySnapshot: Sendable {
         }, by: { $0.observation.observedAtMilliseconds })
         var points: [Point] = []
         var segment = 0
-        var previousReset: Int64?
+        var cycle = 0
+        var referenceReset: Int64?
+        var referencePlan: PlanResolution?
+        var cycleTokenBaseline: Int64 = 0
+        var cumulativeTokens: Int64 = 0
+        let tokenRows = usageRows.filter { row in
+            let time = Date(timeIntervalSince1970: Double(row.observedAtMilliseconds) / 1_000)
+            return time >= start && time <= now
+        }.sorted { $0.observedAtMilliseconds < $1.observedAtMilliseconds }
+        var tokenIndex = 0
         for timestamp in groups.keys.sorted() {
+            while tokenIndex < tokenRows.count, tokenRows[tokenIndex].observedAtMilliseconds <= timestamp {
+                let (sum, overflow) = cumulativeTokens.addingReportingOverflow(max(0, tokenRows[tokenIndex].totalTokens))
+                cumulativeTokens = overflow ? Int64.max : sum
+                tokenIndex += 1
+            }
             let group = groups[timestamp]!.sorted { $0.fingerprint < $1.fingerprint }
             let event = group[0]
             let observation = event.observation
@@ -928,25 +981,35 @@ struct QuotaHistorySnapshot: Sendable {
                       $0.observation.resetsAtMilliseconds.map {
                           $0 > timestamp && abs(Double($0) - Double(reset)) <= 60_000
                       } == true
-                  }) else {
+            }) else {
                 segment += 1
-                previousReset = nil
+                referenceReset = nil
+                referencePlan = nil
                 continue
             }
-            if let previousReset, timestamp >= previousReset { segment += 1 }
+            let changedCycle = referenceReset.map {
+                timestamp >= $0 || abs(Double(reset) - Double($0)) > 60_000
+            } ?? true
+            if changedCycle || referencePlan != observation.plan {
+                if !points.isEmpty { cycle += 1 }
+                if referenceReset != nil { segment += 1 }
+                referenceReset = reset
+                referencePlan = observation.plan
+                cycleTokenBaseline = cumulativeTokens
+            }
+            // Keep the cycle's first observation as a baseline, then plot only quota changes.
+            // Token totals still accumulate while the quota remains flat.
+            if let previous = points.last,
+               previous.cycle == cycle,
+               previous.segment == segment,
+               previous.remaining == observation.remaining {
+                continue
+            }
             let point = Point(id: event.fingerprint,
                 observedAt: Date(timeIntervalSince1970: Double(timestamp) / 1_000),
-                remaining: observation.remaining, segment: segment)
-            // Preserve both ends of flat runs and every change, without plotting identical interiors.
-            if points.count >= 2,
-               points[points.count - 2].segment == segment,
-               points[points.count - 2].remaining == point.remaining,
-               points.last?.remaining == point.remaining {
-                points[points.count - 1] = point
-            } else {
-                points.append(point)
-            }
-            previousReset = reset
+                remaining: observation.remaining, segment: segment, cycle: cycle,
+                tokens: cumulativeTokens - cycleTokenBaseline)
+            points.append(point)
         }
         return Self(start: start, end: now, points: points)
     }

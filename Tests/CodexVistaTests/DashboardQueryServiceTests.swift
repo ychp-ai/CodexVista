@@ -11,7 +11,7 @@ final class DashboardQueryServiceTests: XCTestCase {
             tokens: [(1_000, 999), (2_000, 100), (3_000, 300), (4_000, 200), (5_000, 999)],
             calendar: CodexUsageCalendar.utc
         ).values.first)
-        XCTAssertEqual(stats.changes.count, 3)
+        XCTAssertEqual(stats.changes.count, 2)
         XCTAssertEqual(stats.consumedPercentagePoints, 3, accuracy: 0.00001)
         XCTAssertEqual(stats.matchedTokens, 600)
         XCTAssertEqual(try XCTUnwrap(stats.tokensPerPercent), 200, accuracy: 0.00001)
@@ -42,7 +42,7 @@ final class DashboardQueryServiceTests: XCTestCase {
             events: events, tokens: [(2_000, 100), (3_000, 300), (4_000, 200)],
             calendar: CodexUsageCalendar.utc
         ).values.first)
-        XCTAssertEqual(stats.changes.map(\.reason), ["首次观测", "额度消耗", "额度消耗"])
+        XCTAssertEqual(stats.changes.map(\.reason), ["额度消耗", "额度消耗"])
         XCTAssertEqual(stats.consumedPercentagePoints, 3, accuracy: 0.00001)
         XCTAssertEqual(try XCTUnwrap(stats.tokensPerPercent), 200, accuracy: 0.00001)
     }
@@ -53,13 +53,25 @@ final class DashboardQueryServiceTests: XCTestCase {
         let stats = try XCTUnwrap(DailyQuotaCalculator.calculate(
             events: events, tokens: [(2_000, 100), (3_000, 900)], calendar: CodexUsageCalendar.utc
         ).values.first)
-        XCTAssertEqual(stats.changes.map(\.reason), ["首次观测", "额度消耗", "重置时间变化"])
+        XCTAssertEqual(stats.changes.map(\.reason), ["额度消耗", "重置时间变化"])
         XCTAssertEqual(stats.matchedTokens, 100)
         let expired = DailyQuotaCalculator.calculate(
             events: [quotaSample(1, 0.8, reset: 2), quotaSample(3, 0.7, reset: 4)],
             tokens: [(3_000, 100)], calendar: CodexUsageCalendar.utc
         )
         XCTAssertNil(expired.values.first?.tokensPerPercent)
+    }
+
+    func testQuotaChangesSkipFlatObservationsAcrossResetUntilNextValueChange() throws {
+        let events = [quotaSample(1, 0.8), quotaSample(2, 0.8),
+                      quotaSample(3, 0.8, reset: 300_000),
+                      quotaSample(4, 0.8, reset: 300_000),
+                      quotaSample(5, 0.7, reset: 300_000)]
+        let stats = try XCTUnwrap(DailyQuotaCalculator.calculate(
+            events: events, tokens: [(5_000, 100)], calendar: CodexUsageCalendar.utc
+        ).values.first)
+        XCTAssertEqual(stats.changes.map(\.observedAt), [Date(timeIntervalSince1970: 5)])
+        XCTAssertEqual(stats.changes.map(\.reason), ["额度消耗"])
     }
 
     func testStoredQuotaHistoryKeepsAllObservationsWhileLatestStaysLatest() throws {
@@ -99,14 +111,14 @@ final class DashboardQueryServiceTests: XCTestCase {
         XCTAssertEqual(history.bridges.map { [$0.start.remaining, $0.end.remaining] }, [[0.2, 0.95]])
     }
 
-    func testQuotaHistoryCompressesOnlyFlatInteriorsAndKeepsRecovery() {
+    func testQuotaHistorySkipsFlatObservationsAndKeepsRecovery() {
         let history = QuotaHistorySnapshot.make(events: [
             quotaSample(1, 0.8), quotaSample(2, 0.8), quotaSample(3, 0.8),
             quotaSample(3, 0.8, reset: 200_001, id: "duplicate"),
             quotaSample(4, 0.7), quotaSample(5, 0.9), quotaSample(6, 0.6)
         ], now: Date(timeIntervalSince1970: 10))
-        XCTAssertEqual(history.points.map(\.remaining), [0.8, 0.8, 0.7, 0.9, 0.6])
-        XCTAssertEqual(history.points.map { $0.observedAt.timeIntervalSince1970 }, [1, 3, 4, 5, 6])
+        XCTAssertEqual(history.points.map(\.remaining), [0.8, 0.7, 0.9, 0.6])
+        XCTAssertEqual(history.points.map { $0.observedAt.timeIntervalSince1970 }, [1, 4, 5, 6])
     }
 
     func testQuotaHistoryBreaksAtConflictsAndInvalidObservations() {
@@ -118,6 +130,95 @@ final class DashboardQueryServiceTests: XCTestCase {
         XCTAssertEqual(history.points.map(\.segment), [0, 1, 2])
         XCTAssertEqual(history.bridges.map { [$0.start.remaining, $0.end.remaining] }, [[0.8, 0.5], [0.5, 0.3]])
         XCTAssertTrue(QuotaHistorySnapshot.make(events: [], now: .now).points.isEmpty)
+    }
+
+    func testQuotaHistoryTodayUsesClientCalendarAndExcludesCrossDayBridge() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "Asia/Shanghai"))
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 9, day: 29, hour: 12)))
+        let dayStart = calendar.startOfDay(for: now)
+        let history = QuotaHistorySnapshot(
+            start: dayStart.addingTimeInterval(-86_400), end: now.addingTimeInterval(-60),
+            points: [
+                .init(id: "yesterday", observedAt: dayStart.addingTimeInterval(-60), remaining: 0.9, segment: 0),
+                .init(id: "today-start", observedAt: dayStart.addingTimeInterval(60), remaining: 0.8, segment: 1),
+                .init(id: "today-later", observedAt: dayStart.addingTimeInterval(120), remaining: 0.7, segment: 2),
+                .init(id: "future", observedAt: now.addingTimeInterval(60), remaining: 0.6, segment: 3)
+            ]
+        )
+
+        let today = history.today(in: calendar, now: now)
+        XCTAssertEqual(today.start, dayStart)
+        XCTAssertEqual(today.end, now)
+        XCTAssertEqual(today.points.map(\.id), ["today-start", "today-later"])
+        XCTAssertEqual(today.chartDomain.lowerBound, dayStart.addingTimeInterval(60))
+        XCTAssertEqual(history.chartDomain.lowerBound, dayStart.addingTimeInterval(-60))
+        XCTAssertEqual(today.bridges.map(\.id), ["today-start-today-later"])
+        XCTAssertTrue(history.today(in: calendar, now: dayStart.addingTimeInterval(30)).points.isEmpty)
+    }
+
+    func testQuotaHistoryMatchesTokenDeltasAtObservationsAndRestartsAtReset() throws {
+        let store = try makeStore()
+        try store.commit(batch(events: [
+            usage("before", at: Date(timeIntervalSince1970: 9), total: 100),
+            usage("first-cycle-a", at: Date(timeIntervalSince1970: 11), total: 10),
+            usage("first-cycle-b", at: Date(timeIntervalSince1970: 12), total: 20),
+            usage("first-cycle-jitter", at: Date(timeIntervalSince1970: 13), total: 5),
+            usage("between", at: Date(timeIntervalSince1970: 15), total: 30),
+            usage("second-cycle-a", at: Date(timeIntervalSince1970: 22), total: 40),
+            usage("second-cycle-b", at: Date(timeIntervalSince1970: 23), total: 50)
+        ], quotas: [
+            quotaSample(10, 0.9, reset: 20), quotaSample(12, 0.8, reset: 20),
+            quotaSample(13, 0.75, reset: 40),
+            quotaSample(21, 0.95, reset: 50), quotaSample(23, 0.9, reset: 50)
+        ]))
+        let history = QuotaHistorySnapshot.make(
+            events: try store.quotaHistory(), usageRows: try store.usageEvents(),
+            now: Date(timeIntervalSince1970: 30)
+        )
+        XCTAssertEqual(history.points.map(\.tokens), [0, 30, 35, 0, 90])
+        XCTAssertEqual(history.points.map(\.cycle), [0, 0, 0, 1, 1])
+        XCTAssertEqual(history.points.map(\.segment), [0, 0, 0, 1, 1])
+    }
+
+    func testQuotaHistorySkipsFlatTokenGrowthUntilNextQuotaChange() throws {
+        let store = try makeStore()
+        try store.commit(batch(events: [
+            usage("flat-a", at: Date(timeIntervalSince1970: 11), total: 10),
+            usage("flat-b", at: Date(timeIntervalSince1970: 13), total: 20)
+        ], quotas: [
+            quotaSample(10, 0.9), quotaSample(12, 0.9), quotaSample(13, 0.9),
+            quotaSample(14, 0.9), quotaSample(15, 0.9), quotaSample(16, 0.8)
+        ]))
+        let history = QuotaHistorySnapshot.make(
+            events: try store.quotaHistory(), usageRows: try store.usageEvents(),
+            now: Date(timeIntervalSince1970: 20)
+        )
+        XCTAssertEqual(history.points.map(\.observedAt), [10, 16].map { Date(timeIntervalSince1970: Double($0)) })
+        XCTAssertEqual(history.points.map(\.tokens), [0, 30])
+        XCTAssertEqual(history.changeFromPrevious(at: 1)?.tokenIncrease, 30)
+    }
+
+    func testQuotaHistoryNodeChangeUsesPreviousVisiblePointWithinCycle() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "Asia/Shanghai"))
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 9, day: 29, hour: 12)))
+        let dayStart = calendar.startOfDay(for: now)
+        let history = QuotaHistorySnapshot(start: dayStart.addingTimeInterval(-86_400), end: now, points: [
+            .init(id: "yesterday", observedAt: dayStart.addingTimeInterval(-60), remaining: 0.9, segment: 0, cycle: 0, tokens: 0),
+            .init(id: "drop", observedAt: dayStart.addingTimeInterval(60), remaining: 0.8, segment: 0, cycle: 0, tokens: 100),
+            .init(id: "rebound", observedAt: dayStart.addingTimeInterval(120), remaining: 0.85, segment: 0, cycle: 0, tokens: 120),
+            .init(id: "reset", observedAt: dayStart.addingTimeInterval(180), remaining: 0.95, segment: 1, cycle: 1, tokens: 0),
+            .init(id: "next", observedAt: dayStart.addingTimeInterval(240), remaining: 0.9, segment: 1, cycle: 1, tokens: 10)
+        ])
+
+        XCTAssertNil(history.changeFromPrevious(at: 0))
+        XCTAssertEqual(history.changeFromPrevious(at: 1)?.quotaDecreasePercentagePoints ?? 0, 10, accuracy: 0.001)
+        XCTAssertEqual(history.changeFromPrevious(at: 1)?.tokenIncrease, 100)
+        XCTAssertEqual(history.changeFromPrevious(at: 2)?.quotaDecreasePercentagePoints ?? 0, -5, accuracy: 0.001)
+        XCTAssertNil(history.changeFromPrevious(at: 3))
+        XCTAssertEqual(history.changeFromPrevious(at: 4)?.tokenIncrease, 10)
+        XCTAssertNil(history.today(in: calendar, now: now).changeFromPrevious(at: 0))
     }
 
     private func quotaSample(_ seconds: Int64, _ remaining: Double, reset: Int64 = 200_000, id: String? = nil) -> StoredQuotaEvent {

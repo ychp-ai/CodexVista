@@ -522,39 +522,77 @@ struct MenuBarPopoverView: View {
 }
 
 struct MenuBarQuotaHistoryChart: View {
+    private enum TimeRange: Hashable {
+        case today
+        case sevenDays
+    }
+
     let history: QuotaHistorySnapshot
     @State private var hoveredDate: Date?
+    @State private var timeRange: TimeRange = .today
 
-    private var selected: QuotaHistorySnapshot.Point? {
-        guard let hoveredDate else { return nil }
-        return history.points.min {
-            abs($0.observedAt.timeIntervalSince(hoveredDate)) < abs($1.observedAt.timeIntervalSince(hoveredDate))
+    private var visibleHistory: QuotaHistorySnapshot {
+        timeRange == .today ? history.today() : history
+    }
+
+    private func changeDescription(_ change: QuotaHistorySnapshot.PointChange) -> String {
+        let percentagePoints = abs(change.quotaDecreasePercentagePoints)
+            .formatted(.number.precision(.fractionLength(1)))
+        let quotaChange: String
+        if change.quotaDecreasePercentagePoints > 0.0001 {
+            quotaChange = "额度减少 \(percentagePoints) 个百分点"
+        } else if change.quotaDecreasePercentagePoints < -0.0001 {
+            quotaChange = "额度回升 \(percentagePoints) 个百分点"
+        } else {
+            quotaChange = "额度持平"
         }
+        return "较上一节点 · \(quotaChange) · Token 增加 \(change.tokenIncrease.formatted())"
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let displayedHistory = visibleHistory
+        let tokenMaximum = displayedHistory.points.map(\.tokens).max() ?? 0
+        let selectedIndex = hoveredDate.flatMap { hoveredDate in
+            displayedHistory.points.indices.min {
+                abs(displayedHistory.points[$0].observedAt.timeIntervalSince(hoveredDate)) <
+                    abs(displayedHistory.points[$1].observedAt.timeIntervalSince(hoveredDate))
+            }
+        }
+        let selected = selectedIndex.map { displayedHistory.points[$0] }
+        return VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("近 7 天额度变化")
+                Text("额度趋势")
                     .font(CodexVistaTheme.headingFont(size: 12))
                 Spacer()
-                Text("剩余 %")
+                Text("● 剩余 %")
                     .font(.system(size: 10))
-                    .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+                    .foregroundStyle(CodexVistaTheme.dashboardAccent)
+                if tokenMaximum > 0 {
+                    Text("● 周期 Token")
+                        .font(.system(size: 10))
+                        .foregroundStyle(CodexVistaTheme.dashboardCachedInput)
+                }
+                Picker("趋势范围", selection: $timeRange) {
+                    Text("今日").tag(TimeRange.today)
+                    Text("7 日").tag(TimeRange.sevenDays)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 112)
             }
             Group {
-                if history.points.isEmpty {
-                    Text("近 7 天暂无额度观测")
+                if displayedHistory.points.isEmpty {
+                    Text(timeRange == .today ? "今日暂无额度观测" : "近 7 天暂无额度观测")
                         .font(.caption)
                         .foregroundStyle(CodexVistaTheme.dashboardMutedText)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     Chart {
-                        ForEach(history.bridges) { bridge in
+                        ForEach(displayedHistory.bridges) { bridge in
                             LineMark(
                                 x: .value("时间", bridge.start.observedAt),
                                 y: .value("剩余额度", bridge.start.remaining * 100),
-                                series: .value("观测间隔", bridge.id)
+                                series: .value("序列", "bridge-\(bridge.id)")
                             )
                             .interpolationMethod(.linear)
                             .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
@@ -562,17 +600,17 @@ struct MenuBarQuotaHistoryChart: View {
                             LineMark(
                                 x: .value("时间", bridge.end.observedAt),
                                 y: .value("剩余额度", bridge.end.remaining * 100),
-                                series: .value("观测间隔", bridge.id)
+                                series: .value("序列", "bridge-\(bridge.id)")
                             )
                             .interpolationMethod(.linear)
                             .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
                             .foregroundStyle(CodexVistaTheme.dashboardMutedText)
                         }
-                        ForEach(history.points) { point in
+                        ForEach(displayedHistory.points) { point in
                             LineMark(
                                 x: .value("时间", point.observedAt),
                                 y: .value("剩余额度", point.remaining * 100),
-                                series: .value("观测段", point.segment)
+                                series: .value("序列", "quota-\(point.segment)")
                             )
                             .interpolationMethod(.monotone)
                             .foregroundStyle(CodexVistaTheme.dashboardAccent)
@@ -580,26 +618,68 @@ struct MenuBarQuotaHistoryChart: View {
                                 .symbolSize(7)
                                 .foregroundStyle(CodexVistaTheme.dashboardAccent)
                         }
+                        if tokenMaximum > 0 {
+                            ForEach(displayedHistory.points) { point in
+                                LineMark(
+                                    x: .value("时间", point.observedAt),
+                                    y: .value("周期累计 Token", Double(point.tokens) / Double(tokenMaximum) * 100),
+                                    series: .value("序列", "token-\(point.cycle)")
+                                )
+                                .interpolationMethod(.monotone)
+                                .lineStyle(StrokeStyle(lineWidth: 1.5))
+                                .foregroundStyle(CodexVistaTheme.dashboardCachedInput)
+                            }
+                        }
                         if let selected {
                             RuleMark(x: .value("时间", selected.observedAt))
                                 .foregroundStyle(CodexVistaTheme.dashboardMutedText.opacity(0.5))
                             PointMark(x: .value("时间", selected.observedAt), y: .value("剩余额度", selected.remaining * 100))
                                 .symbolSize(30)
                                 .foregroundStyle(CodexVistaTheme.dashboardAccent)
+                            if tokenMaximum > 0 {
+                                PointMark(
+                                    x: .value("时间", selected.observedAt),
+                                    y: .value("周期累计 Token", Double(selected.tokens) / Double(tokenMaximum) * 100)
+                                )
+                                .symbolSize(30)
+                                .foregroundStyle(CodexVistaTheme.dashboardCachedInput)
+                            }
                         }
                     }
-                    .chartXScale(domain: history.start...history.end)
+                    .chartXScale(domain: displayedHistory.chartDomain)
                     .chartYScale(domain: 0...100)
                     .chartYAxis {
                         AxisMarks(position: .leading, values: [0, 50, 100]) { value in
                             AxisGridLine()
                             AxisValueLabel { Text("\(value.as(Int.self) ?? 0)%").font(.system(size: 9)) }
                         }
+                        if tokenMaximum > 0 {
+                            AxisMarks(position: .trailing, values: [0, 50, 100]) { value in
+                                AxisValueLabel {
+                                    let tokens = Int64(Double(tokenMaximum) * Double(value.as(Int.self) ?? 0) / 100)
+                                    Text(TokenFormatter.compact(Int(clamping: tokens)))
+                                        .font(.system(size: 9))
+                                }
+                            }
+                        }
                     }
                     .chartXAxis {
-                        AxisMarks(values: .stride(by: .day, count: 2)) { _ in
-                            AxisValueLabel(format: .dateTime.month().day())
-                                .font(.system(size: 9))
+                        if timeRange == .today {
+                            AxisMarks(values: .stride(by: .hour, count: 2)) { value in
+                                if let date = value.as(Date.self),
+                                   date <= displayedHistory.end.addingTimeInterval(-45 * 60) {
+                                    AxisValueLabel(format: .dateTime.hour())
+                                        .font(.system(size: 9))
+                                }
+                            }
+                        } else {
+                            AxisMarks(values: .stride(by: .day, count: 2)) { value in
+                                if let date = value.as(Date.self),
+                                   date <= displayedHistory.end.addingTimeInterval(-24 * 60 * 60) {
+                                    AxisValueLabel(format: .dateTime.month().day())
+                                        .font(.system(size: 9))
+                                }
+                            }
                         }
                     }
                     .chartOverlay { proxy in
@@ -621,12 +701,23 @@ struct MenuBarQuotaHistoryChart: View {
                 }
             }
             .frame(height: 120)
-            Text(selected.map {
-                $0.observedAt.formatted(.dateTime.month().day().hour().minute()) + " · 剩余 " + TokenFormatter.percentage($0.remaining)
-            } ?? "本地观测 · 虚线表示观测间隔")
-                .font(.system(size: 9))
-                .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-                .lineLimit(1)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(selected.map {
+                    $0.observedAt.formatted(.dateTime.month().day().hour().minute()) +
+                        " · 剩余 " + TokenFormatter.percentage($0.remaining) +
+                        (tokenMaximum > 0 ? " · 周期累计 " + TokenFormatter.compact(Int(clamping: $0.tokens)) + " Token" : "")
+                } ?? "本地观测 · 虚线表示观测间隔")
+                    .lineLimit(1)
+                if let selectedIndex {
+                    Text(displayedHistory.changeFromPrevious(at: selectedIndex).map(changeDescription)
+                         ?? (selectedIndex == 0 ? "本范围首个观测点" : "新周期首个观测点"))
+                        .lineLimit(1)
+                }
+            }
+            .font(.system(size: 9))
+            .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .onChange(of: timeRange) { _, _ in hoveredDate = nil }
     }
 }
