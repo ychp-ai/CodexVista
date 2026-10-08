@@ -1639,6 +1639,23 @@ final class DashboardQueryServiceTests: XCTestCase {
     func testGuardianUsageKeepsTokensButIsExcludedFromEveryTaskAndReplyMetric() throws {
         let now = Date(timeIntervalSince1970: 20_000)
         let project = ProjectIdentity(id: "project-a", name: "CodexVista")
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("GuardianIndexTests-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let index = try SQLiteDatabase(url: root.appendingPathComponent("state_5.sqlite"))
+        try index.execute(sql: """
+            CREATE TABLE threads(
+              id TEXT, rollout_path TEXT, source TEXT, name TEXT, title TEXT,
+              created_at_ms INTEGER, updated_at_ms INTEGER, archived INTEGER
+            )
+            """)
+        try index.execute(sql: """
+            INSERT INTO threads VALUES
+              ('visible-thread', '/tmp/visible.jsonl', 'vscode', '可见任务', '可见任务', 0, 10000, 0),
+              ('guardian-thread', '/tmp/guardian.jsonl', '{"subagent":{"other":"guardian"}}',
+               'Guardian review', 'Guardian review', 0, 19000, 0)
+            """)
         let store = try makeStore()
         try store.commit(batch(
             events: [
@@ -1680,10 +1697,7 @@ final class DashboardQueryServiceTests: XCTestCase {
             now: now,
             calendar: CodexUsageCalendar.utc,
             firstSubscriptionDate: now.addingTimeInterval(-3_600),
-            threadTitlesByThreadID: [
-                "visible-thread": "可见任务",
-                "guardian-thread": "命令权限检查"
-            ],
+            threadTitlesByThreadID: CodexSourceDiscovery().threadDisplayTitles(rootURL: root),
             parentThreadIDsByChildThreadID: ["guardian-thread": "visible-thread"]
         )
         let entry = try XCTUnwrap(snapshot.workspaceUsage.allTime.entries.first)
@@ -1707,6 +1721,9 @@ final class DashboardQueryServiceTests: XCTestCase {
         XCTAssertEqual(entry.tokens, 100, "Internal checks still contribute to actual usage")
         XCTAssertEqual(entry.conversations.count, 2, "Raw conversations remain available for usage")
         XCTAssertEqual(entry.visibleConversations.map(\.displayTitle), ["可见任务"])
+        XCTAssertEqual(entry.visibleConversations.first?.tokens, 30)
+        XCTAssertEqual(entry.visibleConversations.first?.replies.first?.status, .completed)
+        XCTAssertEqual(entry.visibleConversations.first?.subagents.count, 0)
         XCTAssertEqual(entry.visibleReplyCount, 1)
         XCTAssertEqual(entry.aiWorktimeMilliseconds, 10_000)
         XCTAssertEqual(entry.lastVisibleActivityAtMilliseconds, 10_000)

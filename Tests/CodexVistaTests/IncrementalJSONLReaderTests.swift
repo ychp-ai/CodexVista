@@ -336,6 +336,52 @@ final class IncrementalJSONLReaderTests: XCTestCase {
         )
     }
 
+    func testGuardianIdentitySurvivesIndexTitleBackfill() throws {
+        let root = try temporaryDirectory()
+        let databaseURL = root.appending(path: "state_5.sqlite")
+        try makeThreadDatabase(
+            at: databaseURL,
+            threadID: "guardian",
+            rolloutPath: "/tmp/guardian.jsonl",
+            source: #"{"subagent":{"other":"guardian"}}"#,
+            model: nil,
+            createdAtMilliseconds: 1_000,
+            updatedAtMilliseconds: 2_000,
+            archived: false
+        )
+        let database = try SQLiteDatabase(url: databaseURL)
+        try database.execute(sql: "ALTER TABLE threads ADD COLUMN name TEXT")
+        try database.execute(sql: "ALTER TABLE threads ADD COLUMN title TEXT")
+        try database.execute(sql: "ALTER TABLE threads ADD COLUMN agent_nickname TEXT")
+
+        let discovery = CodexSourceDiscovery()
+        XCTAssertEqual(discovery.threadDisplayTitles(rootURL: root)["guardian"], "命令权限检查")
+
+        // New Codex indexes backfill names on existing internal review threads.
+        try database.execute(sql: """
+            UPDATE threads SET name = 'Guardian review', title = 'Guardian review',
+                               agent_nickname = 'Reviewer'
+            """)
+        let title = discovery.threadDisplayTitles(rootURL: root)["guardian"]
+        XCTAssertEqual(title, "命令权限检查")
+        XCTAssertFalse(ProjectConversationUsage.isIncludedInTaskMetrics(displayTitle: title))
+
+        try database.execute(sql: "UPDATE threads SET name = NULL")
+        XCTAssertEqual(discovery.threadDisplayTitles(rootURL: root)["guardian"], "命令权限检查")
+
+        // A user task with the same title is not an internal permission check.
+        try database.execute(sql: "UPDATE threads SET source = 'vscode', name = 'Guardian review'")
+        let userTitle = discovery.threadDisplayTitles(rootURL: root)["guardian"]
+        XCTAssertEqual(userTitle, "Guardian review")
+        XCTAssertTrue(ProjectConversationUsage.isIncludedInTaskMetrics(displayTitle: userTitle))
+
+        try database.execute(
+            sql: "UPDATE threads SET source = ?",
+            bindings: [.text(#"{"subagent":{"thread_spawn":{"agent_nickname":"guardian"}}}"#)]
+        )
+        XCTAssertEqual(discovery.threadDisplayTitles(rootURL: root)["guardian"], "Guardian review")
+    }
+
     func testIndexReaderFallsBackFromLegacySecondsAndAllowsMissingOptionalTablesAndColumns() throws {
         let root = try temporaryDirectory()
         let databaseURL = root.appending(path: "state_4.sqlite")

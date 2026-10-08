@@ -628,6 +628,17 @@ struct CodexThreadIndexReader {
         agentRole: String?,
         sourceRaw: String
     ) -> String? {
+        let sourceMetadata = try? JSONDecoder().decode(
+            SafeThreadSourceMetadata.self,
+            from: Data(sourceRaw.utf8)
+        )
+        let normalizedSource = sourceRaw.lowercased()
+        // Codex now backfills names such as "Guardian review" on historical checks.
+        // Preserve their internal identity before considering any display metadata.
+        if sourceMetadata?.subagent?.other?.lowercased() == "guardian"
+            || normalizedSource == "guardian" {
+            return "命令权限检查"
+        }
         if let displayName = normalizedDisplayTitle(displayName) {
             return displayName
         }
@@ -641,13 +652,6 @@ struct CodexThreadIndexReader {
             return "Codex 子任务 · \(role)"
         }
 
-        let sourceMetadata = try? JSONDecoder().decode(
-            SafeThreadSourceMetadata.self,
-            from: Data(sourceRaw.utf8)
-        )
-        if sourceMetadata?.subagent?.other?.lowercased() == "guardian" {
-            return "命令权限检查"
-        }
         if let spawn = sourceMetadata?.subagent?.threadSpawn {
             if let nickname = normalizedDisplayTitle(spawn.agentNickname) {
                 return "Codex 子任务 · \(nickname)"
@@ -657,7 +661,6 @@ struct CodexThreadIndexReader {
             }
             return "Codex 子任务"
         }
-        let normalizedSource = sourceRaw.lowercased()
         if normalizedSource.contains("guardian") { return "命令权限检查" }
         if normalizedSource.contains("subagent") { return "Codex 子任务" }
         return nil
