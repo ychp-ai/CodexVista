@@ -68,9 +68,9 @@ struct ModelPricingRule: Equatable, Sendable {
 }
 
 enum ModelPricingCatalog {
-    // GPT-6 standard API rates verified on 2026-09-23; older rates retain their prior checks:
+    // GPT-6.1 Sol standard API rates verified on 2026-10-08; older rates retain their prior checks:
     // https://developers.openai.com/api/docs/models/<modelID>
-    static let lastVerifiedDate = "2026-09-23"
+    static let lastVerifiedDate = "2026-10-08"
     // Spark has no published API price; keep it out of publishedRules.
     static let referencePricedModelIDs = ["gpt-5.3-codex-spark"]
     static var listedModelIDs: [String] {
@@ -84,6 +84,16 @@ enum ModelPricingCatalog {
             cachedInputPerMillionUSD: 1,
             outputPerMillionUSD: 50,
             // API metadata only; aggregate estimates intentionally use standard read rates.
+            longContextThresholdTokens: 272_000,
+            longContextInputMultiplier: 2,
+            longContextOutputMultiplier: 1.5,
+            cacheWriteMultiplier: 1.25
+        ),
+        ModelPricingRule(
+            modelID: "gpt-6.1-sol",
+            inputPerMillionUSD: 2,
+            cachedInputPerMillionUSD: 0.1,
+            outputPerMillionUSD: 10,
             longContextThresholdTokens: 272_000,
             longContextInputMultiplier: 2,
             longContextOutputMultiplier: 1.5,

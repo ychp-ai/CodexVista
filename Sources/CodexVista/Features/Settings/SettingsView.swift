@@ -1274,7 +1274,7 @@ private struct ModelPricingExplanationView: View {
 
             VStack(alignment: .leading, spacing: 5) {
                 Text("费用按未缓存输入、缓存输入、可见输出和推理输出分别估算，推理 Token 按输出价格计算。")
-                Text("GPT-6 Astra、Sol 和 Luna 使用独立公开价格，历史用量也按当前单价重新估算。")
+                Text("GPT-6.1 Sol 与 GPT-6 Astra、Sol 和 Luna 使用各自公开价格，历史用量也按当前单价重新估算。")
                 Text("Spark 暂无公开 API 定价，表中 ≈ 为 GPT-5.5 参考价；codex-auto-review 等未收录独立价格的模型也按此估算。")
                 Text("gpt-5.6 是 gpt-5.6-sol 的别名，使用相同价格。")
                 Text("未计入长上下文、缓存写入、快速模式和工具调用等无法从聚合数据可靠还原的附加费用。")
