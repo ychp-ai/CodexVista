@@ -1,6 +1,6 @@
 {
-  "source_commit": "578fc57c387ef9790c2463d329e734e96c922026",
-  "source_sha256": "5b07d0f97c9207209a3f0ca5e54f9016e332a73314f1b9153b005e3a7181af18",
+  "source_commit": "4ac85734b02b05751560a0ab1b2bd97049280916",
+  "source_sha256": "47c333bf9ea6e4792473e5c59885cac5acfb5cc1ccf1c6f860b6209af3c59234",
   "fixture_date": "2026-09-04T08:00:00Z",
   "method": "Current SwiftUI/AppKit components, isolated documentation app, synthetic data; no live Codex reads",
   "scale": 2,
@@ -17,7 +17,7 @@
       "path": "codexvista-dashboard.png",
       "title": "用量趋势",
       "width": 2120,
-      "sha256": "1ac24ee4fe00ab5c957a5bf37fc44713936c0317bafd8a96979b33f1438d4a2e"
+      "sha256": "9556e0df9a46c66cee5ef19a67ed2005c98647b050bd7331d0ebfa0791c3431b"
     },
     {
       "height": 1764,
@@ -108,28 +108,28 @@
       "path": "codexvista-trend-hover.png",
       "title": "趋势节点明细",
       "width": 860,
-      "sha256": "6f67ec1b407c1fbd8fe206f2783f8a0615211916cb265c3e3c930213aebc3001"
+      "sha256": "6161326d786eb44d1acd1b693f6df6118d92e14354b170c826b00e264c8a72b6"
     },
     {
       "height": 980,
       "path": "codexvista-trend-hover-details.png",
       "title": "趋势节点 · 模型明细",
       "width": 860,
-      "sha256": "20438e0faff9ee6933668f8f427274ac889a2b2a9e5dd5d4ec433336fbe6869e"
+      "sha256": "e057020fbfaf926db57f5144831aa3d239b65e33115979e2b23816fe7b182ad5"
     },
     {
       "height": 1548,
       "path": "codexvista-calendar-day-hover.png",
       "title": "用量日历 · 日期明细",
       "width": 860,
-      "sha256": "a3bd1bd8b72bcd24d81746c2a6be9dcd7577de03f9532536403871efcfaf83d5"
+      "sha256": "bafbc8437116d41a00bfa3fdd9408513575701facc712ae087ced8724ad85206"
     },
     {
       "height": 306,
       "path": "codexvista-calendar-legend-hover.png",
       "title": "用量日历 · 图例明细",
       "width": 680,
-      "sha256": "4b22409e76e991d772c5c9dd260de763c81a57fce09eb28292abb479a0112571"
+      "sha256": "376c2649913c3520d65b34e977b97d9ae4c36b62184e3de2af9330171e502c54"
     },
     {
       "height": 432,
@@ -171,14 +171,14 @@
       "path": "codexvista-model-pricing-popover.png",
       "title": "模型标准价格目录",
       "width": 1520,
-      "sha256": "faded1d7198d69866111a6ec49253a9585cd4c0d22f7deb82c27db0a1919d2ee"
+      "sha256": "c32fe529739af7719be8ac810084fbf1cb8a5b0ce7cec96866460877a5628033"
     },
     {
-      "height": 1306,
+      "height": 1324,
       "path": "codexvista-popover.png",
       "title": "菜单栏弹窗",
       "width": 780,
-      "sha256": "9c36175157b67150d2ba6682ad3ad0772dfeee1c1b6cdec63160fc07e4d0e267"
+      "sha256": "6b40b594a3becb500fb2793b3a9e5ecb73aa69d14b94e9fdc6432e8d41a7814c"
     },
     {
       "height": 2338,
@@ -199,21 +199,21 @@
       "path": "codexvista-settings-data.png",
       "title": "数据与软件更新",
       "width": 1480,
-      "sha256": "882f8eed2d853e907e080d4bcadec1392ac931d6f5a7fc2c13cd04b1b69347b6"
+      "sha256": "5c31edaa06045b902d4f086d0ddbda50e22b6ac3d655d570a2236908883e8ce7"
     },
     {
       "height": 1530,
       "path": "codexvista-settings-plans.png",
       "title": "订阅周期与套餐",
       "width": 1480,
-      "sha256": "ef57c2d93353b98d5c4d4a6281a13c7abf6df8de9ea0ffbb6db724cc63c5149d"
+      "sha256": "06ce65f4578942c458b5cd3865143312d3297b891883cc28b6b18b9f45778eb1"
     },
     {
       "height": 5906,
       "path": "codexvista-settings.png",
       "title": "全部设置",
       "width": 1480,
-      "sha256": "ed8801e22b330242cfd0401cdc57df722568a5b5af8f1c87157f4e31159bca70"
+      "sha256": "69c2c40acd8c3dd36b9dbd1e92f53d58c7952bcf88ea2fda9a0b74a34474751f"
     },
     {
       "height": 224,
@@ -367,7 +367,7 @@
       "path": "codexvista-loading.png",
       "title": "首次载入",
       "width": 2120,
-      "sha256": "46179c8f7eb4be1ab6545b663bfc1096ffd0bc5f8a25895ada13779a73e6e013"
+      "sha256": "20186df25a6f969c7e797e6356350ba592114ff2c3efb28f438d2c973eedabd2"
     },
     {
       "height": 984,

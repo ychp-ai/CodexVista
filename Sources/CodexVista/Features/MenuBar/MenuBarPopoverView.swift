@@ -528,11 +528,12 @@ struct MenuBarQuotaHistoryChart: View {
     }
 
     let history: QuotaHistorySnapshot
+    var now = Date()
     @State private var hoveredDate: Date?
     @State private var timeRange: TimeRange = .today
 
     private var visibleHistory: QuotaHistorySnapshot {
-        timeRange == .today ? history.today() : history
+        timeRange == .today ? history.today(now: now) : history
     }
 
     private func changeDescription(_ change: QuotaHistorySnapshot.PointChange) -> String {

@@ -142,12 +142,22 @@ enum DocumentationFixture {
             quotaHistory: QuotaHistorySnapshot(
                 start: now.addingTimeInterval(-7 * 86_400),
                 end: now,
-                points: [0.92, 0.88, 0.81, 0.76, 0.76, 0.72, 0.68].enumerated().map { index, remaining in
-                    .init(id: "example-quota-\(index)",
-                          observedAt: now.addingTimeInterval(Double(index - 6) * 86_400),
-                          remaining: remaining,
-                          segment: 0)
-                }
+                points: [
+                    .init(id: "example-quota-0", observedAt: now.addingTimeInterval(-6 * 86_400),
+                          remaining: 0.92, segment: 0, tokens: 0),
+                    .init(id: "example-quota-1", observedAt: now.addingTimeInterval(-5 * 86_400),
+                          remaining: 0.88, segment: 0, tokens: 190_000),
+                    .init(id: "example-quota-2", observedAt: now.addingTimeInterval(-4 * 86_400),
+                          remaining: 0.81, segment: 0, tokens: 380_000),
+                    .init(id: "example-quota-3", observedAt: now.addingTimeInterval(-3 * 86_400),
+                          remaining: 0.76, segment: 0, tokens: 520_000),
+                    .init(id: "example-quota-4", observedAt: now.addingTimeInterval(-7.5 * 3_600),
+                          remaining: 0.72, segment: 0, tokens: 610_000),
+                    .init(id: "example-quota-5", observedAt: now.addingTimeInterval(-4 * 3_600),
+                          remaining: 0.70, segment: 0, tokens: 920_000),
+                    .init(id: "example-quota-6", observedAt: now,
+                          remaining: 0.68, segment: 0, tokens: 1_200_000)
+                ]
             ),
             models: [], dailyUsage: daily,
             activityRankings: .init(today: activity, sevenDays: activity, thirtyDays: activity, allTime: activity),
