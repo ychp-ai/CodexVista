@@ -970,14 +970,21 @@ struct QuotaHistorySnapshot: Sendable {
                 cumulativeTokens = overflow ? Int64.max : sum
                 tokenIndex += 1
             }
-            let group = groups[timestamp]!.sorted { $0.fingerprint < $1.fingerprint }
+            let group = groups[timestamp]!.sorted {
+                if $0.observation.plan.isInferred != $1.observation.plan.isInferred {
+                    return !$0.observation.plan.isInferred
+                }
+                return $0.fingerprint < $1.fingerprint
+            }
             let event = group[0]
             let observation = event.observation
             guard observation.remaining.isFinite, (0...1).contains(observation.remaining),
                   let reset = observation.resetsAtMilliseconds, reset > timestamp,
                   group.allSatisfy({
                       $0.observation.remaining == observation.remaining &&
-                      $0.observation.plan == observation.plan &&
+                      ($0.observation.plan.isInferred ||
+                       observation.plan.isInferred ||
+                       $0.observation.plan == observation.plan) &&
                       $0.observation.resetsAtMilliseconds.map {
                           $0 > timestamp && abs(Double($0) - Double(reset)) <= 60_000
                       } == true
@@ -990,12 +997,16 @@ struct QuotaHistorySnapshot: Sendable {
             let changedCycle = referenceReset.map {
                 timestamp >= $0 || abs(Double(reset) - Double($0)) > 60_000
             } ?? true
-            if changedCycle || referencePlan != observation.plan {
+            let changedPlan = !observation.plan.isInferred &&
+                referencePlan.map { !$0.isInferred && $0 != observation.plan } == true
+            if changedCycle || changedPlan {
                 if !points.isEmpty { cycle += 1 }
                 if referenceReset != nil { segment += 1 }
                 referenceReset = reset
                 referencePlan = observation.plan
                 cycleTokenBaseline = cumulativeTokens
+            } else if referencePlan?.isInferred == true && !observation.plan.isInferred {
+                referencePlan = observation.plan
             }
             // Keep the cycle's first observation as a baseline, then plot only quota changes.
             // Token totals still accumulate while the quota remains flat.

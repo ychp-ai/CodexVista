@@ -589,29 +589,11 @@ struct MenuBarQuotaHistoryChart: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     Chart {
-                        ForEach(displayedHistory.bridges) { bridge in
-                            LineMark(
-                                x: .value("时间", bridge.start.observedAt),
-                                y: .value("剩余额度", bridge.start.remaining * 100),
-                                series: .value("序列", "bridge-\(bridge.id)")
-                            )
-                            .interpolationMethod(.linear)
-                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
-                            .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-                            LineMark(
-                                x: .value("时间", bridge.end.observedAt),
-                                y: .value("剩余额度", bridge.end.remaining * 100),
-                                series: .value("序列", "bridge-\(bridge.id)")
-                            )
-                            .interpolationMethod(.linear)
-                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
-                            .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-                        }
                         ForEach(displayedHistory.points) { point in
                             LineMark(
                                 x: .value("时间", point.observedAt),
                                 y: .value("剩余额度", point.remaining * 100),
-                                series: .value("序列", "quota-\(point.segment)")
+                                series: .value("序列", "quota")
                             )
                             .interpolationMethod(.monotone)
                             .foregroundStyle(CodexVistaTheme.dashboardAccent)
@@ -624,7 +606,7 @@ struct MenuBarQuotaHistoryChart: View {
                                 LineMark(
                                     x: .value("时间", point.observedAt),
                                     y: .value("周期累计 Token", Double(point.tokens) / Double(tokenMaximum) * 100),
-                                    series: .value("序列", "token-\(point.cycle)")
+                                    series: .value("序列", "token")
                                 )
                                 .interpolationMethod(.monotone)
                                 .lineStyle(StrokeStyle(lineWidth: 1.5))
@@ -707,7 +689,7 @@ struct MenuBarQuotaHistoryChart: View {
                     $0.observedAt.formatted(.dateTime.month().day().hour().minute()) +
                         " · 剩余 " + TokenFormatter.percentage($0.remaining) +
                         (tokenMaximum > 0 ? " · 周期累计 " + TokenFormatter.compact(Int(clamping: $0.tokens)) + " Token" : "")
-                } ?? "本地观测 · 虚线表示观测间隔")
+                } ?? "本地观测 · 按变动节点连线")
                     .lineLimit(1)
                 if let selectedIndex {
                     Text(displayedHistory.changeFromPrevious(at: selectedIndex).map(changeDescription)

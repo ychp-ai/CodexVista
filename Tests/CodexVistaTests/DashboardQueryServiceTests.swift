@@ -199,6 +199,41 @@ final class DashboardQueryServiceTests: XCTestCase {
         XCTAssertEqual(history.changeFromPrevious(at: 1)?.tokenIncrease, 30)
     }
 
+    func testQuotaHistoryIgnoresInferredPlanJitterWithinOneResetWindow() throws {
+        func sample(_ seconds: Int64, _ remaining: Double, planRaw: String?, id: String) -> StoredQuotaEvent {
+            StoredQuotaEvent(
+                fingerprint: id, threadID: "test-thread",
+                observation: QuotaObservation(
+                    kind: .weekly, observedAtMilliseconds: seconds * 1_000,
+                    windowMinutes: 10_080, remaining: remaining,
+                    resetsAtMilliseconds: 200_000_000,
+                    plan: PlanResolver.resolve(rawValue: planRaw)
+                ), sourceKind: .cli
+            )
+        }
+        let store = try makeStore()
+        try store.commit(batch(events: [
+            usage("first", at: Date(timeIntervalSince1970: 11), total: 10),
+            usage("second", at: Date(timeIntervalSince1970: 13), total: 20),
+            usage("third", at: Date(timeIntervalSince1970: 15), total: 30)
+        ], quotas: [
+            sample(10, 0.20, planRaw: "prolite", id: "start"),
+            sample(12, 0.19, planRaw: "prolite", id: "lower"),
+            sample(13, 0.18, planRaw: nil, id: "inferred-duplicate"),
+            sample(13, 0.18, planRaw: "prolite", id: "explicit-duplicate"),
+            sample(14, 0.18, planRaw: nil, id: "inferred-alone"),
+            sample(15, 0.18, planRaw: "prolite", id: "explicit-again"),
+            sample(16, 0.17, planRaw: "prolite", id: "last")
+        ]))
+        let history = QuotaHistorySnapshot.make(
+            events: try store.quotaHistory(), usageRows: try store.usageEvents(),
+            now: Date(timeIntervalSince1970: 20)
+        )
+        XCTAssertEqual(history.points.map(\.remaining), [0.20, 0.19, 0.18, 0.17])
+        XCTAssertEqual(history.points.map(\.tokens), [0, 10, 30, 60])
+        XCTAssertEqual(history.points.map(\.cycle), [0, 0, 0, 0])
+    }
+
     func testQuotaHistoryNodeChangeUsesPreviousVisiblePointWithinCycle() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "Asia/Shanghai"))
