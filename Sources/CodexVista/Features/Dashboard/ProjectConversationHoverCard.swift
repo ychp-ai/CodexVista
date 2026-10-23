@@ -78,6 +78,15 @@ struct ProjectConversationHoverCard: View {
                     .foregroundStyle(CodexVistaTheme.dashboardMutedText)
             }
 
+            HStack {
+                Text("平均速率")
+                Spacer()
+                Text(TokenFormatter.rateWithUnit(conversation.averageTokensPerSecond))
+                    .monospacedDigit()
+            }
+            .font(.system(size: 10.5, weight: .medium))
+            .help("任务 Token 总量 ÷ 当前范围内回复累计耗时；缺少完整耗时显示 —")
+
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Label("模型调用", systemImage: "cpu")
                     .font(.system(size: 10.5, weight: .semibold))

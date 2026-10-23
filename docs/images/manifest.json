@@ -1,6 +1,6 @@
 {
-  "source_commit": "4ac85734b02b05751560a0ab1b2bd97049280916",
-  "source_sha256": "47c333bf9ea6e4792473e5c59885cac5acfb5cc1ccf1c6f860b6209af3c59234",
+  "source_commit": "da3123f3c297a1f7b9359feaa00229b22b092f2d",
+  "source_sha256": "7ee736271b20167530a82baf7299d46152957f3afa41d0a24671366f7405adb5",
   "fixture_date": "2026-09-04T08:00:00Z",
   "method": "Current SwiftUI/AppKit components, isolated documentation app, synthetic data; no live Codex reads",
   "scale": 2,
@@ -10,91 +10,91 @@
       "path": "codexvista-today-tasks.png",
       "title": "今日任务",
       "width": 2120,
-      "sha256": "229741333466babbea262798395058a2266d63e2f7686db94422f588940ca028"
+      "sha256": "57220fd543077f62bff38eb62e702b93c071e8b24a14f2d74bb0c3256ecc8030"
     },
     {
       "height": 1764,
       "path": "codexvista-dashboard.png",
       "title": "用量趋势",
       "width": 2120,
-      "sha256": "9556e0df9a46c66cee5ef19a67ed2005c98647b050bd7331d0ebfa0791c3431b"
+      "sha256": "9692fc754f44a95966d1c95333cf3de9c3f2bec2cea8ae73a4ea60b6850d17ef"
     },
     {
       "height": 1764,
       "path": "codexvista-activity-usage.png",
       "title": "Skills / Tools",
       "width": 2120,
-      "sha256": "66246341f83aa2c38620a98b013b40cd05d88e94073cb57530e7fa0dd7cf76c0"
+      "sha256": "15a948c7d199d6fbfa1f25fdb678137d4d43d074ebbc83a124b878868fc2bd76"
     },
     {
       "height": 1764,
       "path": "codexvista-project-usage.png",
       "title": "项目用量",
       "width": 2120,
-      "sha256": "efe0425c230efe95d8ada2cd54de20b2049a847e98dde5d05dde33b87664c940"
+      "sha256": "d4f493746b302b0979a5fad8357b9d89c7a6c7a3c3c2fc2447b979bafb383cdb"
     },
     {
       "height": 1464,
       "path": "codexvista-dashboard-compact.png",
-      "title": "最小窗口 · Token 构成",
+      "title": "最小窗口 · 紧凑概览",
       "width": 1840,
-      "sha256": "7a3b642cddfad72cc6a22f7f5f6064e8cc66b40760b49950d15d6079ddf4cefa"
+      "sha256": "089c740caceb30a05c3942ff98e750de1fa33d6eff06db8710c2009cd64e3bb4"
     },
     {
       "height": 1464,
       "path": "codexvista-subscription-composition.png",
       "title": "订阅周期 · Token 构成",
       "width": 1840,
-      "sha256": "506cb28805935342e54a06957e7f37c981197a8f25e4089a066032d44da89393"
+      "sha256": "d0270382e14b17b41f2e152f3f983d983764471065f15b12e8ee286bcdd5a0fd"
     },
     {
       "height": 1484,
       "path": "codexvista-project-overview.png",
       "title": "项目 · 概览",
       "width": 2240,
-      "sha256": "cac88c3778f7021d9a4560b2138dd903d6558646ad25976108eb9a9501ea2e9f"
+      "sha256": "147db20d1567e07c775d967f6f1418a73b1e8e2612856fc447c148109b8acabb"
     },
     {
       "height": 1484,
       "path": "codexvista-task-details.png",
       "title": "项目 · 任务明细",
       "width": 2240,
-      "sha256": "2be94017795dc67734f364669569c470ed0c9d6248320a48e454d7ebe61f4188"
+      "sha256": "11495b710b7825c1c1640247de1d2148ccf5b28126a638db5dcadfda2afe30e7"
     },
     {
       "height": 1484,
       "path": "codexvista-reply-details.png",
       "title": "项目 · 回复明细",
       "width": 2240,
-      "sha256": "52cf9fce4a0fb335b6fd5654219fe95becaabf32f88ad64bf027faa534e04435"
+      "sha256": "c1a49bd9f014de3296c944071a117e34b3f89555acc5f92207f380b019eaebf8"
     },
     {
       "height": 1684,
       "path": "codexvista-today-task-detail.png",
       "title": "今日任务详情",
       "width": 1920,
-      "sha256": "2efa471bfc2d0686569b8d67b70db495dea7eef2768388eda763cce5fec623a8"
+      "sha256": "09e5e72219c57b7e1eb69f8e576139061d46e7f37e94a6888079267cf31d1598"
     },
     {
-      "height": 1320,
+      "height": 1370,
       "path": "codexvista-task-activity-detail.png",
       "title": "任务调用明细",
       "width": 1040,
-      "sha256": "fa4f8d461c35170e2969aa664618717651d64c35d2da57b6973b93d074b6b2f1"
+      "sha256": "63ecddc0543721edf65937cf455a2ea398e7e1e01dda6deaea88bd6fe05f11df"
     },
     {
-      "height": 1244,
+      "height": 1294,
       "path": "codexvista-reply-activity-detail.png",
       "title": "回复调用明细",
       "width": 1040,
-      "sha256": "25bc6397050fa28b2e4d6cc0503bd246af743db2bc13bb49a4e8301d7a8dd511"
+      "sha256": "17ada5d72bf108a7cbc2b24be6623c3fddc7e44669b7a4432236a105d7eff2dc"
     },
     {
-      "height": 1244,
+      "height": 1294,
       "path": "codexvista-today-task-reply-hover.png",
       "title": "今日任务 · 回复调用明细",
       "width": 1040,
-      "sha256": "236b3234fdb42f2730a3a8a35efa7be57dd3dc1525a4969aaf491882cc1ed134"
+      "sha256": "d59c6cd8c8a679c084a2b1ed96aaf67de1b2f879c35d29a98228f3cea1c2f437"
     },
     {
       "height": 286,
@@ -108,21 +108,21 @@
       "path": "codexvista-trend-hover.png",
       "title": "趋势节点明细",
       "width": 860,
-      "sha256": "6161326d786eb44d1acd1b693f6df6118d92e14354b170c826b00e264c8a72b6"
+      "sha256": "634a43d1ffc165b5f44e357939af08a31eb6eb1b6548b070acb4141b4f288577"
     },
     {
       "height": 980,
       "path": "codexvista-trend-hover-details.png",
       "title": "趋势节点 · 模型明细",
       "width": 860,
-      "sha256": "e057020fbfaf926db57f5144831aa3d239b65e33115979e2b23816fe7b182ad5"
+      "sha256": "a7f3d2aaf0144e6f98cd6419926513bb6169269989d2830dbe1132455fb3e9dc"
     },
     {
       "height": 1548,
       "path": "codexvista-calendar-day-hover.png",
       "title": "用量日历 · 日期明细",
       "width": 860,
-      "sha256": "bafbc8437116d41a00bfa3fdd9408513575701facc712ae087ced8724ad85206"
+      "sha256": "eabd043b67f73855db58fb9e16d19f492921eb3f7c0fd070b1973237a7f83298"
     },
     {
       "height": 306,
@@ -171,49 +171,168 @@
       "path": "codexvista-model-pricing-popover.png",
       "title": "模型标准价格目录",
       "width": 1520,
-      "sha256": "c32fe529739af7719be8ac810084fbf1cb8a5b0ce7cec96866460877a5628033"
+      "sha256": "91253dc5df18bf59cd72dde97efb1fc1e4df8dadef2a78aea9863e900e995fbb"
     },
     {
-      "height": 1324,
+      "height": 846,
       "path": "codexvista-popover.png",
       "title": "菜单栏弹窗",
       "width": 780,
-      "sha256": "6b40b594a3becb500fb2793b3a9e5ecb73aa69d14b94e9fdc6432e8d41a7814c"
+      "sha256": "6a17cddb3c1ec630f40acc6af2f26293eadebdfd5a15e289475ed7e84f33d9b4"
     },
     {
-      "height": 2338,
+      "height": 1484,
       "path": "codexvista-settings-appearance.png",
-      "title": "外观、看板与摘要",
-      "width": 1480,
-      "sha256": "513230c7ed92070daea6069c74d62d4260c511e9d5f9dc223de9f6131432db64"
+      "title": "外观",
+      "width": 1280,
+      "sha256": "0ee8a0e48708175922933d182819f3be4309c8839cc03a3f30ee0ebf8cda6f16"
     },
     {
-      "height": 680,
+      "height": 1484,
+      "path": "codexvista-settings-dashboard.png",
+      "title": "看板与摘要",
+      "width": 1280,
+      "sha256": "938b0f14cb0ad4bee77e64e06017189a8ae7df5c11960b723c2ea2c84fb11a07"
+    },
+    {
+      "height": 1484,
       "path": "codexvista-settings-reminders.png",
       "title": "额度提醒",
-      "width": 1480,
-      "sha256": "5f2c1284ddc51b6d9bbbd82e37e0a2833b1f98962425210a3b00ba80742f256d"
+      "width": 1280,
+      "sha256": "c891b197e1e5f0c55a8d2586d5fd879bdef7a45c6ff48724811d3ec2ced2ff5c"
     },
     {
-      "height": 1568,
+      "height": 1484,
       "path": "codexvista-settings-data.png",
-      "title": "数据与软件更新",
-      "width": 1480,
-      "sha256": "5c31edaa06045b902d4f086d0ddbda50e22b6ac3d655d570a2236908883e8ce7"
+      "title": "数据与更新",
+      "width": 1280,
+      "sha256": "3f84384a1656de54683ca0e7c11607bf81a23df3baea403d23680de47118ffdd"
     },
     {
-      "height": 1530,
+      "height": 1484,
       "path": "codexvista-settings-plans.png",
-      "title": "订阅周期与套餐",
-      "width": 1480,
-      "sha256": "06ce65f4578942c458b5cd3865143312d3297b891883cc28b6b18b9f45778eb1"
+      "title": "订阅与关于",
+      "width": 1280,
+      "sha256": "6fb63b09eece2edf78b0592d7d575cd28aa342ca0bcd1c7f70af8ac5a4d200e6"
     },
     {
-      "height": 5906,
+      "height": 1484,
       "path": "codexvista-settings.png",
-      "title": "全部设置",
-      "width": 1480,
-      "sha256": "69c2c40acd8c3dd36b9dbd1e92f53d58c7952bcf88ea2fda9a0b74a34474751f"
+      "title": "设置 · 外观",
+      "width": 1280,
+      "sha256": "5d988f64b5cb2d58529a8760af2f33a3d0b90d408017c8a55b70e095687b6582"
+    },
+    {
+      "height": 1364,
+      "path": "layout/daily-reading.png",
+      "title": "完整用量明细",
+      "width": 1240,
+      "sha256": "617c26d033d244a59b9b5e81cd27b02fdf159946f7e88a341644938742bbd919"
+    },
+    {
+      "height": 1464,
+      "path": "layout/main-todayTasks.png",
+      "title": "最小窗口 · 今日任务",
+      "width": 1840,
+      "sha256": "ed26a8fdc64431d6cfd5bfe4c3f72980dac7acaabb474c4c8b64c53d8daba15a"
+    },
+    {
+      "height": 1464,
+      "path": "layout/main-trend.png",
+      "title": "最小窗口 · 用量趋势",
+      "width": 1840,
+      "sha256": "a60bc59b563a8e5fa04bd7332df0772b69fa0ca1bce2bf57b3f53171612416d6"
+    },
+    {
+      "height": 1464,
+      "path": "layout/main-activity.png",
+      "title": "最小窗口 · Skills / Tools",
+      "width": 1840,
+      "sha256": "7c0095d3e87aec991029a54686778715f9fb6e89df3612fcf53510b3135c6070"
+    },
+    {
+      "height": 1464,
+      "path": "layout/main-project.png",
+      "title": "最小窗口 · 项目用量",
+      "width": 1840,
+      "sha256": "98e3f46ac684229067b4b53e35742da960426dd29266caed865d1a3acffbd861"
+    },
+    {
+      "height": 1204,
+      "path": "layout/project-overview.png",
+      "title": "最小项目详情 · 概览",
+      "width": 1520,
+      "sha256": "1d9cdbab53012e7c997cf209744d5d2d42e5587561ba4be480705ebe90d624f9"
+    },
+    {
+      "height": 1204,
+      "path": "layout/project-conversations.png",
+      "title": "最小项目详情 · 任务明细",
+      "width": 1520,
+      "sha256": "82cb1506cc1ab99b6970fb03270985da50ea0916ab3b789eb009cf5a53ae0156"
+    },
+    {
+      "height": 1204,
+      "path": "layout/project-replies.png",
+      "title": "最小项目详情 · 回复明细",
+      "width": 1520,
+      "sha256": "7dd39a1958c96cbed9f9705478b9c3cdb92d205efa11e122daf16cf05d1cdec6"
+    },
+    {
+      "height": 1204,
+      "path": "layout/task-回复明细.png",
+      "title": "最小任务详情 · 回复明细",
+      "width": 1520,
+      "sha256": "81523507cef6066965461a80c2860f807df75bc499dc524f905f96b216b6bd51"
+    },
+    {
+      "height": 1204,
+      "path": "layout/task-用量与调用.png",
+      "title": "最小任务详情 · 用量与调用",
+      "width": 1520,
+      "sha256": "c0926e59e83ff3bbb43d76b421b16ffb49d3f9b6e92c9468dc2e7d7c7f1c265b"
+    },
+    {
+      "height": 1204,
+      "path": "layout/task-关联目录.png",
+      "title": "最小任务详情 · 关联目录",
+      "width": 1520,
+      "sha256": "e96a0ee8353a44160b1d6a989adf24d51ab88489c958a779d8e7f47996e98630"
+    },
+    {
+      "height": 1464,
+      "path": "layout/main-dense.png",
+      "title": "30 条任务 · 最小窗口 · 手动收起概览",
+      "width": 1840,
+      "sha256": "652893c5da91a20ab167993113f0f8987443e7d12534fa8abe6a73fa2f908865"
+    },
+    {
+      "height": 884,
+      "path": "layout/activity-long-name.png",
+      "title": "长工具名称",
+      "width": 1760,
+      "sha256": "c3437314ef89bb57ec4455517500e455da7c400f9fce7922eda8a27d6b3310ee"
+    },
+    {
+      "height": 1204,
+      "path": "layout/reply-trace-880.png",
+      "title": "回复调用链",
+      "width": 1760,
+      "sha256": "c04db33552839ceea10362f7904d4471c719a03cf47def66bfef40cec708239e"
+    },
+    {
+      "height": 1204,
+      "path": "layout/reply-trace-1040.png",
+      "title": "回复调用链",
+      "width": 2080,
+      "sha256": "02bbb9db6a48b5f21af497ce8d8f5335fd1bff2c5bf1c5a861b9ea6bb37aed0b"
+    },
+    {
+      "height": 870,
+      "path": "layout/reply-trace-slow-tools.png",
+      "title": "调用链 · 慢工具排行",
+      "width": 840,
+      "sha256": "9a4c2b9172d4072ebf64a6724bc487a5cb8934a7c8a7b5e1fd67763d7e27bd3e"
     },
     {
       "height": 224,
@@ -241,7 +360,7 @@
       "path": "themes/codexvista-light.png",
       "title": "经典 · 浅色",
       "width": 2120,
-      "sha256": "1a6ff286ea1112dd7d5181b9fb22c683b558f3e0ab8f48174777d87afc918ada"
+      "sha256": "03e1870f59b86b0823d99d0f3c92d01fc152d54e1c7f2171b7d6420d64e46b4d"
     },
     {
       "height": 804,
@@ -255,7 +374,7 @@
       "path": "themes/codexvista-dark.png",
       "title": "经典 · 深色",
       "width": 2120,
-      "sha256": "c3b2d92525d5e53ca8c2235f4a1e4d1f6844aeb115e27b3bbe616ba280fa637a"
+      "sha256": "f934bc909a061bfbe42753805a6d396a920d70056f31849d8c11fa88d62568ac"
     },
     {
       "height": 804,
@@ -269,7 +388,7 @@
       "path": "themes/codexvista-ink-light.png",
       "title": "水墨 · 浅色",
       "width": 2120,
-      "sha256": "aa557dbf841aa24a4626e45f8499210a07108dcc9ddef7627bb6b98dfc644aef"
+      "sha256": "d28d504fac59b7cbeaea396e4fa0ec6151cb1211ca9e9d9deae1b4835ae84545"
     },
     {
       "height": 804,
@@ -283,7 +402,7 @@
       "path": "themes/codexvista-celadon-light.png",
       "title": "青瓷 · 浅色",
       "width": 2120,
-      "sha256": "67695bfe4a5817b923a9398b870c775aa2254ff9e6e51165ded44823323922bc"
+      "sha256": "46810595209a6545bf1407b0c8f1b7d9e19ec8b55ee680c95b030a519bb1228c"
     },
     {
       "height": 804,
@@ -297,7 +416,7 @@
       "path": "themes/codexvista-celadon-dark.png",
       "title": "青瓷 · 深色",
       "width": 2120,
-      "sha256": "2647815790dd94fea69ea76b40e90c4ed00eb6bcaa63f0532e0327796d702b04"
+      "sha256": "100cb998a89d94e47a23b66774fdc10f61f68ab2dc764f19635e6b2d9abe6ed3"
     },
     {
       "height": 804,
@@ -311,7 +430,7 @@
       "path": "themes/codexvista-dusk-light.png",
       "title": "暮霞 · 浅色",
       "width": 2120,
-      "sha256": "017a28d2a670d0046e50be4bca958478eddba0e7a48f5230967d3824a407d35d"
+      "sha256": "20a4a0ae7c7efe81121b3c53a34d7c6f09c7dc4d446af2298eff6d40e0b7c37a"
     },
     {
       "height": 804,
@@ -325,7 +444,7 @@
       "path": "themes/codexvista-dusk-dark.png",
       "title": "暮霞 · 深色",
       "width": 2120,
-      "sha256": "d508f21d1e15805bb9682d289c9781dbd582714a950e17def5271d60045a1594"
+      "sha256": "9c4a3abe80336fd2c860434929bb01775406e6ae614af472ebeb07588ed813f3"
     },
     {
       "height": 804,
@@ -339,7 +458,7 @@
       "path": "themes/codexvista-cyber-dark.png",
       "title": "未来科技 · 深色",
       "width": 2120,
-      "sha256": "184b9ffaea97f2599c29819b29b0a25300841f07d8ad241765bf4cbd3ca4795b"
+      "sha256": "385192164989c10f2af7beae964391263b147223d53086d73d971dc2e40f5223"
     },
     {
       "height": 804,
@@ -353,7 +472,7 @@
       "path": "themes/codexvista-xianxia-light.png",
       "title": "仙侠 · 浅色",
       "width": 2120,
-      "sha256": "b8705835ae0ae0a960d879553bf462eef7dfa50ebee83d86ac0a6fee2b952cd8"
+      "sha256": "b4d0deda8117536bb8d817ed2201e47bc211a202dd202a9ee0343d759f65f740"
     },
     {
       "height": 1452,
@@ -367,21 +486,14 @@
       "path": "codexvista-loading.png",
       "title": "首次载入",
       "width": 2120,
-      "sha256": "20186df25a6f969c7e797e6356350ba592114ff2c3efb28f438d2c973eedabd2"
+      "sha256": "daaed95a7c9b2f5123cbb6be42a867b3c2a06209b5f54ae779de47628e9e710f"
     },
     {
       "height": 984,
       "path": "codexvista-empty.png",
       "title": "尚无本地数据",
       "width": 1600,
-      "sha256": "cc85e88b419593aa86073556dd14d56bfb658517d29330aa1c68da2b8bff1486"
-    },
-    {
-      "height": 570,
-      "path": "codexvista-rebuild-confirmation.png",
-      "title": "原生重建确认提示（同文案示例）",
-      "width": 520,
-      "sha256": "8e24746ffa9affe1fa51bfe17a1fc4eac3b0576a4baecc391e8ceba9488ac0e3"
+      "sha256": "87fc8bdb10b3b8ca547dbefed543d2a8ed1ea7a1c0de56f39798c8ad118101af"
     }
   ]
 }

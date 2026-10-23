@@ -390,3 +390,35 @@ final class ProjectDetailWindowController: NSWindowController, NSWindowDelegate 
         isSynchronizingMove = false
     }
 }
+
+/// A separate reading window keeps long reference content available after its popover closes.
+@MainActor
+final class DetailReadingWindowController: NSWindowController {
+    static let shared = DetailReadingWindowController()
+
+    private init() {
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 620, height: 640),
+            styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
+        super.init(window: window)
+        window.isReleasedWhenClosed = false
+        window.minSize = NSSize(width: 540, height: 420)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func show<Content: View>(title: String, @ViewBuilder content: () -> Content) {
+        guard let window else { return }
+        window.title = title
+        window.level = NSApp.keyWindow?.level ?? .normal
+        window.contentViewController = NSHostingController(rootView: CodexVistaAppearanceContainer {
+            content().frame(maxWidth: .infinity, maxHeight: .infinity)
+        })
+        let screen = (NSApp.keyWindow?.screen ?? NSScreen.main)?.visibleFrame
+            ?? NSRect(x: 0, y: 0, width: 1_200, height: 800)
+        let size = NSSize(width: min(620, screen.width - 32), height: min(680, screen.height - 32))
+        window.setFrame(NSRect(x: screen.midX - size.width / 2, y: screen.midY - size.height / 2,
+                               width: size.width, height: size.height), display: true)
+        window.makeKeyAndOrderFront(nil)
+    }
+}

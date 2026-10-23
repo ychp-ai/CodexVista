@@ -6,6 +6,51 @@ import XCTest
 
 @MainActor
 final class DashboardStoreTests: XCTestCase {
+    func testMenuBarTokenRateKeepsLastCompletedReplyEvenWhenRefreshIsStale() {
+        let rate = TokenConsumptionRate(totalTokens: 600, durationMilliseconds: 30_000,
+                                        measuredAt: Date(timeIntervalSince1970: 0))
+        let snapshot = DashboardSnapshot(
+            planName: "Plus", updatedText: "刚刚刷新", periods: [], quotas: [],
+            tokenConsumptionRate: rate, models: [], dailyUsage: []
+        )
+        XCTAssertEqual(MenuBarTokenRate.latest(for: .loaded(snapshot, .fixture)), rate)
+        XCTAssertEqual(MenuBarTokenRate.latest(for: .stale(snapshot, .fixture, "失败")), rate)
+        XCTAssertNil(MenuBarTokenRate.latest(for: .loaded(.fixture(todayTokens: 42), .fixture)))
+        XCTAssertNil(MenuBarTokenRate.latest(for: .loading))
+        XCTAssertNil(MenuBarTokenRate.latest(for: .failed("失败")))
+    }
+
+    func testMenuBarRefreshUpdatesEveryFiveSecondsAndStopsWhenCancelled() async {
+        let sleeper = SuspendedSleeper()
+        let client = FakeDashboardDataClient(
+            loadResult: .empty(.fixture), refreshResults: [.loaded(.fixture(todayTokens: 42), .fixture)]
+        )
+        let store = DashboardStore(client: client, sleeper: { try await sleeper.sleep(for: $0) })
+        let task = Task { await store.refreshWhileMenuBarIsPresented() }
+        await eventually { await sleeper.callCount == 1 }
+        await sleeper.resumeNext()
+        await eventually { await sleeper.callCount == 2 }
+        XCTAssertEqual(store.snapshot?.todayTokens, 42)
+        let durations = await sleeper.requestedDurations
+        XCTAssertEqual(durations, [.seconds(5), .seconds(5)])
+        task.cancel()
+        await task.value
+        let refreshCount = await client.refreshCount
+        XCTAssertEqual(refreshCount, 1)
+    }
+
+    func testMenuBarRefreshHonorsDisabledAutomaticRefresh() async {
+        let sleeper = SuspendedSleeper()
+        let client = FakeDashboardDataClient(loadResult: .empty(.fixture), refreshResults: [])
+        let store = DashboardStore(client: client, automaticRefreshEnabled: false,
+            sleeper: { try await sleeper.sleep(for: $0) })
+        await store.refreshWhileMenuBarIsPresented()
+        let sleepCount = await sleeper.callCount
+        let refreshCount = await client.refreshCount
+        XCTAssertEqual(sleepCount, 0)
+        XCTAssertEqual(refreshCount, 0)
+    }
+
     func testDailyDetailPopoverKeepsSizeAcrossDataAndExpandedModels() {
         let empty = DailyUsage(id: "2026-09-18", day: "9/18", total: 0)
         let host = NSHostingView(rootView: DailyUsageHoverCard(

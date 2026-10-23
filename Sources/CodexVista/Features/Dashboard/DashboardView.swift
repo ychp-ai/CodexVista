@@ -214,11 +214,15 @@ struct DashboardView: View {
         systemImage: String,
         description: String
     ) -> some View {
-        ContentUnavailableView(
-            title,
-            systemImage: systemImage,
-            description: Text(description)
-        )
+        ContentUnavailableView {
+            Label(title, systemImage: systemImage)
+        } description: {
+            Text(description)
+        } actions: {
+            Button("刷新数据") { Task { await store.refresh() } }
+                .disabled(store.isRefreshing)
+            SettingsLink { Text("打开设置") }
+        }
         .frame(
             minWidth: DashboardWindowLayout.baseExpandedContentSize.width,
             minHeight: DashboardWindowLayout.baseExpandedContentSize.height
@@ -278,7 +282,7 @@ private struct DashboardLoadingView: View {
             CodexVistaGlassGroup(spacing: 16) {
                 VStack(alignment: .leading, spacing: 16) {
                     loadingOverview
-                        .frame(height: DashboardWindowLayout.standardOverviewHeight)
+                        .frame(height: DashboardWindowLayout.compactOverviewHeight)
                     loadingAnalytics
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
@@ -303,84 +307,24 @@ private struct DashboardLoadingView: View {
     }
 
     private var loadingOverview: some View {
-        HStack(spacing: 16) {
-            loadingQuota
-                .frame(width: 280)
-
-            Rectangle()
-                .fill(CodexVistaTheme.dashboardBorder)
-                .frame(width: 1)
-
-            LazyVGrid(
-                columns: [
-                    GridItem(.flexible(), spacing: 12),
-                    GridItem(.flexible(), spacing: 12)
-                ],
-                spacing: 10
-            ) {
-                ForEach(0..<4, id: \.self) { index in
-                    DashboardLoadingMetricTile(
-                        index: index,
-                        isHighlighted: isHighlighted
-                    )
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                DashboardLoadingBlock(width: 210, height: 20, isHighlighted: isHighlighted)
+                Spacer()
+                DashboardLoadingBlock(width: 90, height: 16, isHighlighted: isHighlighted)
+            }
+            HStack(spacing: 12) {
+                ForEach(0..<5, id: \.self) { _ in
+                    VStack(alignment: .leading, spacing: 8) {
+                        DashboardLoadingBlock(width: 48, height: 12, isHighlighted: isHighlighted)
+                        DashboardLoadingBlock(width: 78, height: 22, isHighlighted: isHighlighted)
+                        DashboardLoadingBlock(width: 56, height: 10, isHighlighted: isHighlighted)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .dashboardPanel(padding: 14, strong: true)
-    }
-
-    private var loadingQuota: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                Label("额度使用", systemImage: "gauge.with.dots.needle.50percent")
-                    .font(CodexVistaTheme.headingFont(size: 14))
-
-                Spacer(minLength: 8)
-
-                HStack(spacing: 6) {
-                    ProgressView()
-                        .controlSize(.mini)
-                        .tint(CodexVistaTheme.dashboardAccent)
-                    Text("正在读取")
-                }
-                .font(.system(size: 10.5, weight: .medium))
-                .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("额度使用，正在读取 Codex 本地数据")
-
-            VStack(spacing: 8) {
-                ZStack {
-                    Circle()
-                        .stroke(CodexVistaTheme.dashboardAccent.opacity(0.18), lineWidth: 2)
-                    Circle()
-                        .trim(from: 0.05, to: 0.32)
-                        .stroke(
-                            CodexVistaTheme.brandGradient,
-                            style: StrokeStyle(lineWidth: 6, lineCap: .round)
-                        )
-                        .rotationEffect(.degrees(isHighlighted ? 230 : -40))
-
-                    Text("…")
-                        .font(CodexVistaTheme.metricFont(size: 24))
-                        .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-                }
-                .frame(width: 112, height: 112)
-
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(CodexVistaTheme.dashboardAccent.opacity(0.74))
-                        .frame(width: 6, height: 6)
-                    DashboardLoadingBlock(width: 58, height: 8, isHighlighted: isHighlighted)
-                    Spacer(minLength: 8)
-                    DashboardLoadingBlock(width: 42, height: 8, isHighlighted: isHighlighted)
-                }
-                .frame(maxWidth: 200)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private var loadingAnalytics: some View {
@@ -543,6 +487,7 @@ private struct DashboardBackdrop: View {
 }
 
 enum DashboardWindowLayout {
+    static let compactOverviewHeight: CGFloat = 140
     static let standardOverviewHeight: CGFloat = 310
     static let subscriptionOverviewHeight: CGFloat = 310
     static let baseExpandedContentSize = CGSize(width: 920, height: 690)
@@ -678,6 +623,7 @@ private struct DashboardContentView: View {
     @State private var selectedActivityRange = ActivityRange.defaultRange
     @State private var selectedProjectRange = ActivityRange.defaultRange
     @State private var selectedPeriodID = "today"
+    @State private var showsExpandedOverview = true
 
     private var hasSubscriptionCycle: Bool {
         snapshot.subscriptionCycle != nil
@@ -697,7 +643,19 @@ private struct DashboardContentView: View {
 
             CodexVistaGlassGroup(spacing: 16) {
                 VStack(alignment: .leading, spacing: 16) {
-                    overviewPanel.frame(height: overviewHeight)
+                    if showsExpandedOverview {
+                        VStack(spacing: 8) {
+                            HStack {
+                                Text("额度与周期概览")
+                                    .font(CodexVistaTheme.headingFont(size: 12))
+                                Spacer()
+                                overviewDisclosure
+                            }
+                            overviewPanel.frame(height: overviewHeight)
+                        }
+                    } else {
+                        compactOverview.frame(height: DashboardWindowLayout.compactOverviewHeight)
+                    }
                     analyticsPanel.frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
@@ -721,6 +679,60 @@ private struct DashboardContentView: View {
             periodMetricsSection
         }
         .dashboardPanel(padding: 14, strong: true)
+    }
+
+    private var overviewDisclosure: some View {
+        Button {
+            showsExpandedOverview.toggle()
+        } label: {
+            Label(showsExpandedOverview ? "收起概览" : "展开概览",
+                  systemImage: showsExpandedOverview ? "chevron.up" : "chevron.down")
+        }
+        .buttonStyle(.plain)
+        .font(.system(size: 11, weight: .medium))
+        .foregroundStyle(CodexVistaTheme.dashboardAccent)
+        .padding(.vertical, 4)
+        .accessibilityValue(showsExpandedOverview ? "已展开" : "已收起")
+    }
+
+    private var compactOverview: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 14) {
+                Label("剩余额度", systemImage: "gauge.with.dots.needle.50percent")
+                    .font(CodexVistaTheme.headingFont(size: 12))
+                if snapshot.visibleQuotas.isEmpty {
+                    Text("暂无额度数据").foregroundStyle(CodexVistaTheme.dashboardMutedText)
+                }
+                ForEach(snapshot.visibleQuotas) { quota in
+                    HStack(spacing: 6) {
+                        Text("\(quota.compactTitle) · \(quota.remainingPercent)%")
+                            .font(CodexVistaTheme.metricFont(size: 16))
+                            .foregroundStyle(quotaColor(for: quota))
+                        Text("\(quota.resetText)重置")
+                            .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+                    }
+                    .monospacedDigit()
+                    .accessibilityElement(children: .combine)
+                }
+                Spacer(minLength: 8)
+                if let period = selectedPeriod {
+                    PeriodModelUsageControl(
+                        periodTitle: period.title,
+                        periodSubtitle: period.id == "subscriptionCycle"
+                            ? snapshot.subscriptionCycle.map(subscriptionCycleRangeText) : nil,
+                        ranking: snapshot.modelUsage.ranking(forPeriodID: period.id)
+                    )
+                }
+                overviewDisclosure
+            }
+            .font(.system(size: 11))
+            HStack(spacing: 6) {
+                ForEach(snapshot.periods) { period in
+                    periodSelector(period, compact: true)
+                }
+            }
+        }
+        .dashboardPanel(padding: 12, strong: true)
     }
 
     private var currentQuotaSection: some View {
@@ -1016,17 +1028,18 @@ private struct DashboardContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    private func periodSelector(_ period: PeriodUsage) -> some View {
+    private func periodSelector(_ period: PeriodUsage, compact: Bool = false) -> some View {
         let isSelected = selectedPeriod?.id == period.id
         return Button {
             selectedPeriodID = period.id
+            if compact { showsExpandedOverview = true }
         } label: {
-            VStack(alignment: .leading, spacing: 9) {
+            VStack(alignment: .leading, spacing: compact ? 4 : 9) {
                 Text(period.id == "subscriptionCycle" ? "订阅周期" : period.title)
                     .font(.system(size: 11, weight: isSelected ? .semibold : .medium))
                     .foregroundStyle(isSelected ? CodexVistaTheme.dashboardAccent : CodexVistaTheme.dashboardMutedText)
                 Text(TokenFormatter.compact(period.total))
-                    .font(CodexVistaTheme.metricFont(size: 20))
+                    .font(CodexVistaTheme.metricFont(size: compact ? 18 : 20))
                     .foregroundStyle(CodexVistaTheme.dashboardPrimaryText)
                     .monospacedDigit()
                     .lineLimit(1)
@@ -1040,7 +1053,7 @@ private struct DashboardContentView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 10)
-            .padding(.vertical, 12)
+            .padding(.vertical, compact ? 6 : 12)
             .background(isSelected ? CodexVistaTheme.dashboardControlBackground : Color.clear,
                         in: RoundedRectangle(cornerRadius: CodexVistaTheme.cornerRadius(10)))
             .overlay(alignment: .bottom) {
@@ -1104,7 +1117,7 @@ private struct DashboardContentView: View {
 
             analyticsContent
         }
-        .dashboardPanel(padding: 10)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var analyticsContent: some View {

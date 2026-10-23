@@ -66,6 +66,18 @@ enum MenuBarQuotaTimingText {
     }
 }
 
+enum MenuBarTokenRate {
+    static func latest(for state: DashboardLoadState) -> TokenConsumptionRate? {
+        switch state {
+        case .loaded(let snapshot, _), .stale(let snapshot, _, _):
+            guard let rate = snapshot.tokenConsumptionRate, rate.tokensPerSecond != nil else { return nil }
+            return rate
+        case .loading, .empty, .failed, .unsupported:
+            return nil
+        }
+    }
+}
+
 struct MenuBarUnavailableContent: Equatable {
     let title: String
     let description: String
@@ -126,6 +138,7 @@ struct MenuBarPopoverView: View {
     let updateService: AppUpdateService
     private let onOpenDashboard: (() -> Void)?
     private let onOpenSettings: (() -> Void)?
+    @State private var showsDetails = false
 
     init(
         store: DashboardStore,
@@ -143,8 +156,24 @@ struct MenuBarPopoverView: View {
         CodexVistaGlassGroup(spacing: 10) {
             VStack(spacing: 10) {
                 header
-                popoverContent
-                updateStatus
+                ScrollView {
+                    VStack(spacing: 10) {
+                        popoverContent
+                        if store.snapshot != nil {
+                            Button {
+                                showsDetails.toggle()
+                            } label: {
+                                Label(showsDetails ? "收起趋势与构成" : "展开趋势与构成", systemImage: showsDetails ? "chevron.up" : "chevron.down")
+                                    .frame(maxWidth: .infinity, minHeight: 24)
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(CodexVistaTheme.dashboardAccent)
+                        }
+                    }
+                }
+                .scrollIndicators(.automatic)
+                .frame(height: min(showsDetails ? 560 : 270, max(160, (NSScreen.main?.visibleFrame.height ?? 800) - 180)))
+                if showsUpdateStatus { updateStatus }
                 footerActions
             }
         }
@@ -153,6 +182,16 @@ struct MenuBarPopoverView: View {
         .background { CodexVistaBackdrop() }
         .foregroundStyle(CodexVistaTheme.dashboardPrimaryText)
         .task { await store.start() }
+        .task(id: store.isAutomaticRefreshEnabled) {
+            await store.refreshWhileMenuBarIsPresented()
+        }
+    }
+
+    private var showsUpdateStatus: Bool {
+        switch updateService.state {
+        case .idle, .upToDate: false
+        case .checking, .available, .downloading, .ready, .failed: true
+        }
     }
 
     private var updateStatus: some View {
@@ -350,19 +389,28 @@ struct MenuBarPopoverView: View {
 
             quotaSection
 
-            Divider().overlay(CodexVistaTheme.dashboardBorder)
-
-            MenuBarQuotaHistoryChart(history: store.snapshot?.quotaHistory ?? .empty)
+            if showsDetails {
+                Divider().overlay(CodexVistaTheme.dashboardBorder)
+                MenuBarQuotaHistoryChart(history: store.snapshot?.quotaHistory ?? .empty)
+            }
         }
         .dashboardCard(padding: 14)
     }
 
     private var todayCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            wideTodaySummary
-            TokenCompositionView(breakdown: store.snapshot?.breakdown,
-                                 total: store.snapshot?.todayTokens,
-                                 compact: true)
+            HStack(alignment: .top, spacing: 16) {
+                todayTokenSummary
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                tokenRateSummary
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+            if showsDetails {
+                Divider().overlay(CodexVistaTheme.dashboardBorder)
+                TokenCompositionView(breakdown: store.snapshot?.breakdown,
+                                     total: store.snapshot?.todayTokens,
+                                     compact: true)
+            }
         }
         .dashboardCard(padding: 14)
     }
@@ -405,16 +453,15 @@ struct MenuBarPopoverView: View {
         }
     }
 
-    private var wideTodaySummary: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text("今日 Token")
+    private var todayTokenSummary: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("今日总 Token")
                 .font(.caption)
                 .foregroundStyle(CodexVistaTheme.dashboardMutedText)
 
-            Spacer()
-
             todayTokenValue
         }
+        .accessibilityElement(children: .combine)
     }
 
     private var todayTokenValue: some View {
@@ -423,6 +470,28 @@ struct MenuBarPopoverView: View {
             .monospacedDigit()
             .lineLimit(1)
             .minimumScaleFactor(0.75)
+    }
+
+    private var tokenRateSummary: some View {
+        let rate = MenuBarTokenRate.latest(for: store.state)
+        return VStack(alignment: .trailing, spacing: 4) {
+            Text("最后一次速率")
+                .font(.caption)
+                .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(rate?.tokensPerSecond.map(TokenFormatter.rate) ?? "—")
+                    .font(CodexVistaTheme.metricFont(size: 20))
+                    .monospacedDigit()
+                Text("Token/s")
+                    .font(.caption)
+                    .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+                TokenRateInfoButton(explanation: .latestReply(completedAt: rate?.measuredAt))
+            }
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
+        }
+        .accessibilityElement(children: .contain)
     }
 
     @ViewBuilder
@@ -700,6 +769,8 @@ struct MenuBarQuotaHistoryChart: View {
             .font(.system(size: 9))
             .foregroundStyle(CodexVistaTheme.dashboardMutedText)
             .frame(maxWidth: .infinity, alignment: .leading)
+            // Reserve both detail lines so selecting a point never resizes the popover.
+            .frame(height: 28, alignment: .top)
         }
         .onChange(of: timeRange) { _, _ in hoveredDate = nil }
     }

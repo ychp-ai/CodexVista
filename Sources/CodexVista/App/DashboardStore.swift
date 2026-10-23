@@ -411,6 +411,19 @@ final class DashboardStore {
         }
     }
 
+    // The popover's SwiftUI task owns this loop and cancels it when it closes.
+    func refreshWhileMenuBarIsPresented() async {
+        while isAutomaticRefreshEnabled && !Task.isCancelled {
+            do {
+                try await sleeper(.seconds(5))
+            } catch {
+                return
+            }
+            guard isAutomaticRefreshEnabled, !Task.isCancelled else { return }
+            await refreshUsage()
+        }
+    }
+
     func refresh() async {
         if let inFlightManualRefresh {
             await inFlightManualRefresh.value

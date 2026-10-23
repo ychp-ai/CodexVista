@@ -29,7 +29,8 @@ enum DocumentationFixture {
             skillCalls: [.init(name: "build-web-apps:frontend-app-builder", count: 1),
                          .init(name: "build-web-apps:react-best-practices", count: 2)],
             toolCalls: [.init(name: "exec_command", count: 8), .init(name: "apply_patch", count: 3),
-                        .init(name: "view_image", count: 2)])
+                        .init(name: "view_image", count: 2)],
+            traceThreadID: "example-trace-thread-\(index)")
     }
 
     static let workspaces: [WorkspaceUsageEntry] = {
@@ -122,6 +123,38 @@ enum DocumentationFixture {
         return usage
     }
 
+    static let denseWorkspace = WorkspaceUsageEntry(
+        id: "example-dense-project", name: "示例项目 · 跨平台组件与长名称布局验证", rootCount: 2,
+        isInferred: false, tokens: 1_200_000, share: 1, projects: [],
+        conversations: (0..<30).map { index in
+            ProjectConversationUsage(shortThreadID: "example-dense-task-\(index)",
+                displayTitle: "布局验证任务 \(index + 1) · 检查长名称、回复列表与窄窗口适配",
+                tokens: 40_000, lastMessageAtMilliseconds: milliseconds - Int64(index) * 60_000,
+                replies: (0..<5).map { reply(index * 5 + $0, tokens: 8_000) })
+        }, dailyUsage: [], configuredDirectories: [.init(id: "example-dense-root", name: "components")])
+
+    static let trace = ReplyTrace(nodes: (0..<10).map(traceNode), notices: [])
+
+    private static func traceNode(_ index: Int) -> ReplyTraceNode {
+        let start = milliseconds + Int64(index) * 5_000
+        let phase: ReplyTraceMessagePhase? = switch index {
+        case 1: .commentary
+        case 8: .partialAnswer
+        case 9: .finalAnswer
+        default: nil
+        }
+        let kind: ReplyTraceNodeKind = index == 0 ? .reply : index == 7 ? .usage : phase != nil ? .message : .tool
+        let name = index == 0 ? "示例回复" : index == 7 ? "模型用量" : phase?.title ?? "exec_command · 示例调用 \(index)"
+        return ReplyTraceNode(id: "example-node-\(index)", parentID: index == 0 ? nil : "example-node-0",
+            threadID: "example-thread", turnID: "example-turn", kind: kind,
+            name: name, status: index == 4 ? .failed : .completed,
+            startedAt: start, endedAt: index == 7 ? nil : index == 0 ? milliseconds + 49_000 : start + Int64(index) * 400,
+            timing: index == 7 ? .point : index == 3 ? .estimated : .recorded, model: "example-model",
+            tokens: index == 7 ? .init(inputTokens: 30_000, cachedInputTokens: 15_000, outputTokens: 10_000,
+                                     reasoningOutputTokens: 2_000, totalTokens: 40_000) : nil,
+            reasoningEffort: .high, messagePhase: phase, timeToFirstTokenMilliseconds: index == 0 ? 920 : nil)
+    }
+
     static let snapshot: DashboardSnapshot = {
         let monthly = daily.reduce(0) { $0 + $1.total }
         let totals = [("today", "今日", 1_200_000, 8_400_000),
@@ -159,6 +192,7 @@ enum DocumentationFixture {
                           remaining: 0.68, segment: 0, tokens: 1_200_000)
                 ]
             ),
+            tokenConsumptionRate: .init(totalTokens: 75_000, durationMilliseconds: 60_000, measuredAt: now),
             models: [], dailyUsage: daily,
             activityRankings: .init(today: activity, sevenDays: activity, thirtyDays: activity, allTime: activity),
             workspaceUsage: .init(today: workspaceRanking, sevenDays: workspaceRanking,

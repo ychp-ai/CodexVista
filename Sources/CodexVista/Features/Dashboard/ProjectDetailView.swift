@@ -18,14 +18,18 @@ struct ProjectDetailView: View {
         VStack(spacing: 0) {
             titleBar
 
+            VStack(alignment: .leading, spacing: 12) {
+                projectHeader
+                tabSelector
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    projectHeader
-                    tabSelector
-                    summaryCards
-
                     switch selectedTab {
                     case .overview:
+                        summaryCards
                         overviewContent
                     case .conversations:
                         conversationDetailList
@@ -137,15 +141,24 @@ struct ProjectDetailView: View {
             }
 
             Spacer()
+
+            Button {
+                onDetailHover(nil)
+                selectedTab = .replies
+            } label: {
+                Label("查看回复明细", systemImage: "bubble.left.and.text.bubble.right")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .tint(CodexVistaTheme.dashboardAccent)
+            .fixedSize()
+            .help("前往回复明细，选择要查看的调用链")
         }
         .padding(.horizontal, 2)
     }
 
     private var summaryCards: some View {
-        LazyVGrid(
-            columns: [GridItem(.adaptive(minimum: 190), spacing: 10)],
-            spacing: 10
-        ) {
+        HStack(spacing: 8) {
             metricCard(
                 "总 Token",
                 value: TokenFormatter.compact(entry.tokens),
@@ -193,25 +206,17 @@ struct ProjectDetailView: View {
         icon: String,
         tint: Color
     ) -> some View {
-        HStack(alignment: .center, spacing: 10) {
-            Image(systemName: icon)
-                .font(.system(size: 18, weight: .medium))
-                .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(tint)
-                .frame(width: 32)
-
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+        VStack(alignment: .leading, spacing: 6) {
+                Label(title, systemImage: icon)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(tint)
                 Text(value)
                     .font(.system(size: 18, weight: .semibold, design: .rounded))
                     .monospacedDigit()
-            }
-            Spacer(minLength: 0)
+                    .lineLimit(1)
         }
         .padding(.horizontal, 12)
-        .frame(maxWidth: .infinity, minHeight: 66)
+        .frame(maxWidth: .infinity, minHeight: 66, alignment: .leading)
         .background(
             CodexVistaTheme.dashboardTile.opacity(0.82),
             in: RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -640,6 +645,16 @@ struct ProjectDetailView: View {
                     Text("Token")
                         .font(.system(size: 8.5, weight: .medium))
                         .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+
+                    Spacer(minLength: 4)
+
+                    Text("均速 \(TokenFormatter.rateWithUnit(conversation.averageTokensPerSecond))")
+                        .font(.system(size: 9, weight: .medium, design: .rounded))
+                        .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
+                    TokenRateInfoButton(explanation: .task)
                 }
 
                 HStack(spacing: 7) {
@@ -666,10 +681,10 @@ struct ProjectDetailView: View {
                         .frame(width: 44, alignment: .trailing)
                 }
             }
-            .frame(width: 158, alignment: .trailing)
+            .frame(width: 210, alignment: .trailing)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.vertical, 8)
         .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
         .background(
             CodexVistaTheme.dashboardControlBackground.opacity(0.34),
@@ -685,12 +700,13 @@ struct ProjectDetailView: View {
             } ?? conversation.shortThreadID)
                 + (enablesHover ? " · 点击筛选回复明细" : "")
         )
-        .accessibilityElement(children: .ignore)
+        .accessibilityElement(children: .contain)
         .accessibilityLabel(
             "\(title)，\(conversation.tokens.formatted()) Token，"
                 + "\(conversation.replies.count) 次回复，"
                 + "\(range.rawValue)耗时 "
                 + TokenFormatter.worktime(conversation.aiWorktimeMilliseconds)
+                + "，平均速率 \(TokenFormatter.rateWithUnit(conversation.averageTokensPerSecond))"
         )
         .contentShape(Rectangle())
         .onHover { isHovering in
@@ -1069,86 +1085,52 @@ struct ProjectReplyDetailList: View {
 
     private func replyRow(_ row: ProjectReplyDetailRow) -> some View {
         let status = ProjectReplyPresentation.status(row.reply.status)
-        return HStack(alignment: .center, spacing: 12) {
-            Image(systemName: ProjectReplyPresentation.icon(row.reply.status))
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(status.color)
-                .frame(width: 30, height: 30)
-                .background(
-                    status.color.opacity(0.10),
-                    in: RoundedRectangle(cornerRadius: 9, style: .continuous)
-                )
-
-            VStack(alignment: .leading, spacing: 7) {
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 10) {
+                Image(systemName: ProjectReplyPresentation.icon(row.reply.status))
+                    .foregroundStyle(status.color)
                 Text(row.conversationTitle)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(CodexVistaTheme.dashboardPrimaryText.opacity(0.91))
-                    .lineLimit(2)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                HStack(spacing: 10) {
-                    Label(
-                        ProjectUsageDateFormatter.replyTime(
-                            row.reply.displayAtMilliseconds
-                        ),
-                        systemImage: "clock"
-                    )
-
-                    Text(status.title)
-                        .font(.system(size: 8.5, weight: .semibold))
-                        .foregroundStyle(status.color)
-                        .padding(.horizontal, 7)
-                        .frame(height: 18)
-                        .background(status.color.opacity(0.09), in: Capsule())
-
-                    Label(
-                        ProjectReplyPresentation.modelText(row.reply.model),
-                        systemImage: "cpu"
-                    )
+                    .font(.system(size: 12, weight: .semibold))
                     .lineLimit(1)
-                }
-                .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-            }
-
-            VStack(alignment: .trailing, spacing: 7) {
-                HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    Text(TokenFormatter.compact(row.reply.totalTokens))
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .foregroundStyle(CodexVistaTheme.dashboardPrimaryText.opacity(0.92))
-                        .monospacedDigit()
-                    Text("Token")
-                        .font(.system(size: 8.5, weight: .medium))
-                        .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-                }
-
-                HStack(spacing: 7) {
-                    Label(
-                        ProjectUsageDateFormatter.duration(
-                            row.reply.aiWorktimeMilliseconds
-                        ),
-                        systemImage: "stopwatch"
-                    )
-                    .font(.system(size: 9, weight: .medium, design: .rounded))
+                    .help(row.conversationTitle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text(status.title).foregroundStyle(status.color)
+                Text(ProjectUsageDateFormatter.replyTime(row.reply.displayAtMilliseconds))
                     .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-                    .monospacedDigit()
-
-                    replyActivityMetric(
-                        title: "Skill",
-                        count: row.reply.skillCallCount,
-                        icon: "sparkles",
-                        tint: CodexVistaTheme.dashboardInput
-                    )
-                    replyActivityMetric(
-                        title: "工具",
-                        count: row.reply.toolCallCount,
-                        icon: "wrench.and.screwdriver.fill",
-                        tint: CodexVistaTheme.dashboardAccentSecondary
-                    )
+                if row.reply.traceThreadID != nil {
+                    Button {
+                        onHover(nil)
+                        ReplyTraceWindowController.shared.show(row: row)
+                    } label: {
+                        Label("查看调用链", systemImage: "point.3.connected.trianglepath.dotted")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .tint(CodexVistaTheme.dashboardAccent)
+                    .fixedSize()
+                    .help("查看这次回复的节点、时间线与调用详情")
                 }
             }
-            .frame(width: 210, alignment: .trailing)
+            .font(.system(size: 11, weight: .medium))
+            HStack(spacing: 10) {
+                Text(ProjectReplyPresentation.modelText(row.reply.model))
+                    .lineLimit(1)
+                    .help(ProjectReplyPresentation.modelText(row.reply.model))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text("\(TokenFormatter.compact(row.reply.totalTokens)) Token")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(CodexVistaTheme.dashboardPrimaryText)
+                HStack(spacing: 0) {
+                    Text("均速 \(TokenFormatter.rateWithUnit(row.reply.averageTokensPerSecond))")
+                    TokenRateInfoButton(explanation: .reply)
+                }
+                Label(ProjectUsageDateFormatter.duration(row.reply.aiWorktimeMilliseconds), systemImage: "stopwatch")
+                replyActivityMetric(title: "Skill", count: row.reply.skillCallCount, icon: "sparkles", tint: CodexVistaTheme.dashboardInput)
+                replyActivityMetric(title: "工具", count: row.reply.toolCallCount, icon: "wrench.and.screwdriver.fill", tint: CodexVistaTheme.dashboardAccentSecondary)
+            }
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+            .monospacedDigit()
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -1161,11 +1143,12 @@ struct ProjectReplyDetailList: View {
             RoundedRectangle(cornerRadius: 9, style: .continuous)
                 .stroke(CodexVistaTheme.dashboardBorder.opacity(0.72), lineWidth: 1)
         }
-        .accessibilityElement(children: .ignore)
+        .accessibilityElement(children: .contain)
         .accessibilityLabel(
             "\(row.conversationTitle)，状态 \(status.title)，"
                 + "\(row.reply.totalTokens.formatted()) Token，耗时 "
                 + TokenFormatter.worktime(row.reply.aiWorktimeMilliseconds)
+                + "，平均速率 \(TokenFormatter.rateWithUnit(row.reply.averageTokensPerSecond))"
         )
         .contentShape(Rectangle())
         .onHover { isHovering in
@@ -1250,6 +1233,15 @@ struct ProjectReplyHoverCard: View {
                         + TokenFormatter.worktime(row.reply.aiWorktimeMilliseconds)
                 )
             }
+
+            HStack {
+                Text("平均速率")
+                Spacer()
+                Text(TokenFormatter.rateWithUnit(row.reply.averageTokensPerSecond))
+                    .monospacedDigit()
+            }
+            .font(.system(size: 10.5, weight: .medium))
+            .help("回复 Token 总量 ÷ 回复累计耗时；缺少有效耗时显示 —")
 
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Label("模型调用", systemImage: "cpu")

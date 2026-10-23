@@ -1,5 +1,20 @@
 import Foundation
 
+struct TokenConsumptionRate: Equatable, Sendable {
+    let totalTokens: Int64
+    let durationMilliseconds: Int64
+    let measuredAt: Date
+
+    var tokensPerSecond: Double? {
+        Self.average(totalTokens: totalTokens, durationMilliseconds: durationMilliseconds)
+    }
+
+    static func average(totalTokens: Int64, durationMilliseconds: Int64) -> Double? {
+        guard totalTokens >= 0, durationMilliseconds > 0 else { return nil }
+        return Double(totalTokens) / (Double(durationMilliseconds) / 1_000)
+    }
+}
+
 struct DashboardSnapshot: Sendable {
     let planName: String
     let updatedText: String
@@ -7,6 +22,7 @@ struct DashboardSnapshot: Sendable {
     let subscriptionCycle: SubscriptionCycle?
     let quotas: [QuotaSnapshot]
     let quotaHistory: QuotaHistorySnapshot
+    let tokenConsumptionRate: TokenConsumptionRate?
     let models: [ModelUsage]
     let dailyUsage: [DailyUsage]
     let subscriptionCycleUsage: [DailyUsage]
@@ -22,6 +38,7 @@ struct DashboardSnapshot: Sendable {
         subscriptionCycle: SubscriptionCycle? = nil,
         quotas: [QuotaSnapshot],
         quotaHistory: QuotaHistorySnapshot = .empty,
+        tokenConsumptionRate: TokenConsumptionRate? = nil,
         models: [ModelUsage],
         dailyUsage: [DailyUsage],
         subscriptionCycleUsage: [DailyUsage] = [],
@@ -36,6 +53,7 @@ struct DashboardSnapshot: Sendable {
         self.subscriptionCycle = subscriptionCycle
         self.quotas = quotas
         self.quotaHistory = quotaHistory
+        self.tokenConsumptionRate = tokenConsumptionRate
         self.models = models
         self.dailyUsage = dailyUsage
         self.subscriptionCycleUsage = subscriptionCycleUsage
@@ -310,6 +328,15 @@ struct ProjectConversationUsage: Identifiable, Equatable, Sendable {
         }
     }
 
+    var averageTokensPerSecond: Double? {
+        guard unattributedTokens == 0,
+              replies.allSatisfy({ $0.totalTokens == 0 || $0.aiWorktimeMilliseconds > 0 })
+        else { return nil }
+        return TokenConsumptionRate.average(
+            totalTokens: Int64(tokens), durationMilliseconds: aiWorktimeMilliseconds
+        )
+    }
+
     var unpricedModelCount: Int {
         modelCalls.count { ModelPricingCatalog.rule(for: $0.name) == nil }
     }
@@ -371,6 +398,9 @@ struct ProjectReplyUsage: Identifiable, Equatable, Sendable {
     let skillCalls: [ProjectReplyActivityCall]
     let toolCalls: [ProjectReplyActivityCall]
 
+    /// In-memory source identity for on-demand trace loading; never persisted separately.
+    var traceThreadID: String? = nil
+
     var model: String {
         modelCalls.map { "\($0.name) ×\($0.count)" }.joined(separator: " · ")
     }
@@ -386,6 +416,12 @@ struct ProjectReplyUsage: Identifiable, Equatable, Sendable {
     var durationMilliseconds: Int64? {
         guard let startedAtMilliseconds, let endedAtMilliseconds else { return nil }
         return max(0, endedAtMilliseconds - startedAtMilliseconds)
+    }
+
+    var averageTokensPerSecond: Double? {
+        TokenConsumptionRate.average(
+            totalTokens: Int64(totalTokens), durationMilliseconds: aiWorktimeMilliseconds
+        )
     }
 
     var skillCallCount: Int {

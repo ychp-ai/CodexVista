@@ -1,6 +1,23 @@
 import Foundation
 
 enum TokenFormatter {
+    static func rateWithUnit(_ value: Double?) -> String {
+        guard let value, value.isFinite, value >= 0 else { return "—" }
+        return "\(rate(value)) Token/s"
+    }
+
+    static func rate(_ value: Double) -> String {
+        guard value.isFinite, value >= 0 else { return "—" }
+        switch value {
+        case 1_000_000_000...: return String(format: "%.1fB", value / 1_000_000_000)
+        case 1_000_000...: return String(format: "%.1fM", value / 1_000_000)
+        case 1_000...: return String(format: "%.1fK", value / 1_000)
+        case 0: return "0"
+        case ..<0.1: return "<0.1"
+        default: return String(format: "%.1f", value)
+        }
+    }
+
     static func compact(_ value: Int) -> String {
         switch value {
         case 1_000_000_000...:

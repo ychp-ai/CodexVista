@@ -4,6 +4,7 @@ struct DailyUsageHoverCard: View {
     let usage: DailyUsage
     let dateText: String
     @Binding var showsModelDetails: Bool
+    var isExpanded = false
     @State private var showsQuotaChanges = false
 
     var body: some View {
@@ -13,7 +14,7 @@ struct DailyUsageHoverCard: View {
             cardContent
         }
         .scrollIndicators(.visible)
-        .frame(width: 308, height: 400)
+        .frame(width: isExpanded ? nil : 308, height: isExpanded ? nil : 400)
         .background(
             CodexVistaTheme.dashboardSurface,
             in: RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -31,9 +32,23 @@ struct DailyUsageHoverCard: View {
 
     private var cardContent: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(dateText)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+            HStack {
+                Text(dateText)
+                    .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+                Spacer(minLength: 0)
+                if !isExpanded {
+                    Button("完整明细", systemImage: "arrow.up.right.square") {
+                        DetailReadingWindowController.shared.show(title: "\(dateText) · 用量明细") {
+                            DailyUsageHoverCard(usage: usage, dateText: dateText,
+                                               showsModelDetails: .constant(true), isExpanded: true)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(CodexVistaTheme.dashboardAccent)
+                    .help("在独立窗口查看完整用量与模型明细")
+                }
+            }
+            .font(.system(size: 11, weight: .medium))
 
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(TokenFormatter.compact(usage.total))
@@ -70,11 +85,11 @@ struct DailyUsageHoverCard: View {
                 }
                 .font(.system(size: 10, weight: .medium))
                 Text("按同日、同周期的观测区间估算；仅含本机 Token。")
-                    .font(.system(size: 8.5))
+                    .font(.system(size: 11))
                     .foregroundStyle(CodexVistaTheme.dashboardMutedText)
                 if statistics.tokensPerPercent != nil {
                     Text("有效样本消耗 \(statistics.consumedPercentagePoints.formatted(.number.precision(.fractionLength(2)))) 个百分点")
-                        .font(.system(size: 8.5))
+                        .font(.system(size: 11))
                         .foregroundStyle(CodexVistaTheme.dashboardMutedText)
                 }
                 Button {
@@ -122,7 +137,7 @@ struct DailyUsageHoverCard: View {
 
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text("API 等值预计花费")
-                        .font(.system(size: 9, weight: .medium))
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(CodexVistaTheme.dashboardMutedText)
 
                     Spacer(minLength: 8)
@@ -138,34 +153,40 @@ struct DailyUsageHoverCard: View {
 
                 if usage.unpricedModelCount > 0 {
                     Text("部分估算 · \(usage.unpricedModelCount) 个模型未定价")
-                        .font(.system(size: 8.5, weight: .medium))
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(CodexVistaTheme.dashboardMutedText)
                 } else if usage.referencePricedModelCount > 0 {
                     Text("参考估算 · \(usage.referencePricedModelCount) 个模型按 GPT-5.5 参考价")
-                        .font(.system(size: 8.5, weight: .medium))
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(CodexVistaTheme.dashboardMutedText)
                 }
             }
             if !usage.modelEntries.isEmpty {
                 Divider()
-                Button {
-                    showsModelDetails.toggle()
-                } label: {
-                    HStack {
-                        Text(showsModelDetails ? "收起模型明细" : "查看模型明细")
-                        Spacer()
-                        Text("\(usage.modelEntries.count) 个模型")
-                            .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-                        Image(systemName: showsModelDetails ? "chevron.up" : "chevron.down")
+                if isExpanded {
+                    Text("模型明细 · \(usage.modelEntries.count) 个模型")
+                        .font(.system(size: 12, weight: .semibold))
+                        .padding(.vertical, 6)
+                } else {
+                    Button {
+                        showsModelDetails.toggle()
+                    } label: {
+                        HStack {
+                            Text(showsModelDetails ? "收起模型明细" : "查看模型明细")
+                            Spacer()
+                            Text("\(usage.modelEntries.count) 个模型")
+                                .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+                            Image(systemName: showsModelDetails ? "chevron.up" : "chevron.down")
+                        }
+                        .font(.system(size: 11, weight: .medium))
+                        .padding(.vertical, 6)
+                        .contentShape(Rectangle())
                     }
-                    .font(.system(size: 11, weight: .medium))
-                    .padding(.vertical, 6)
-                    .contentShape(Rectangle())
+                    .buttonStyle(.plain)
+                    .foregroundStyle(CodexVistaTheme.dashboardAccent)
+                    .accessibilityValue(showsModelDetails ? "已展开" : "已折叠")
                 }
-                .buttonStyle(.plain)
-                .foregroundStyle(CodexVistaTheme.dashboardAccent)
-                .accessibilityValue(showsModelDetails ? "已展开" : "已折叠")
-                if showsModelDetails {
+                if isExpanded || showsModelDetails {
                     VStack(alignment: .leading, spacing: 12) {
                         ForEach(usage.modelEntries) { entry in
                             modelSection(entry)
@@ -174,11 +195,12 @@ struct DailyUsageHoverCard: View {
                     .padding(.vertical, 5)
                 }
                 Text("API 等值估算，不代表 Codex 实际账单。")
-                    .font(.system(size: 8.5))
+                    .font(.system(size: 11))
                     .foregroundStyle(CodexVistaTheme.dashboardMutedText)
             }
         }
-        .frame(width: 290)
+        .frame(width: isExpanded ? nil : 290)
+        .frame(maxWidth: isExpanded ? .infinity : nil, alignment: .leading)
         .padding(.horizontal, 9)
         .padding(.vertical, 7)
     }
@@ -210,7 +232,7 @@ struct DailyUsageHoverCard: View {
                     .foregroundStyle(CodexVistaTheme.dashboardAccent)
                     .monospacedDigit()
             }
-            .font(.system(size: 9, weight: .medium))
+            .font(.system(size: 11, weight: .medium))
             .foregroundStyle(CodexVistaTheme.dashboardMutedText)
             Divider()
         }

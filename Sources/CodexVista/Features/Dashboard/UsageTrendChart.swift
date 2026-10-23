@@ -200,39 +200,49 @@ struct UsageTrendChart: View {
     }
 
     private var legend: some View {
-        ScrollView(.horizontal) {
-            HStack(spacing: 12) {
-                ForEach(series) { series in
-                    let isVisible = !hiddenSeriesIDs.contains(series.id)
-                    Button {
-                        isShowingModelDetails = false
-                        selection = nil
-                        isHoveringCard = false
-                        if isVisible {
-                            guard visibleSeries.count > 1 else { return }
-                            hiddenSeriesIDs.insert(series.id)
-                        } else {
-                            hiddenSeriesIDs.remove(series.id)
-                        }
-                    } label: {
-                        HStack(spacing: 5) {
-                            Capsule().fill(color(for: series)).frame(width: 15, height: 3)
-                            Text(series.title)
-                                .font(.system(size: 9, weight: .medium))
-                                .strikethrough(!isVisible)
-                        }
-                        .opacity(isVisible ? 1 : 0.4)
-                        .padding(.vertical, 4)
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: 3), alignment: .leading, spacing: 4) {
+            ForEach(Array(series.prefix(series.count > 6 ? 5 : 6))) { item in
+                Button { toggleSeries(item.id) } label: {
+                    HStack(spacing: 5) {
+                        Capsule().fill(color(for: item)).frame(width: 12, height: 3)
+                        Text(item.title)
+                            .strikethrough(hiddenSeriesIDs.contains(item.id))
+                            .lineLimit(1)
                     }
-                    .buttonStyle(.plain)
-                    .help(isVisible ? "隐藏\(series.title)曲线" : "显示\(series.title)曲线")
-                    .accessibilityLabel("\(series.title)曲线，\(isVisible ? "已显示" : "已隐藏")")
-                    .accessibilityAddTraits(isVisible ? .isSelected : [])
+                    .font(.system(size: 11, weight: .medium))
+                    .opacity(hiddenSeriesIDs.contains(item.id) ? 0.5 : 1)
+                    .padding(.vertical, 4)
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                .help(item.title)
+                .accessibilityLabel("\(item.title)曲线")
+                .accessibilityValue(hiddenSeriesIDs.contains(item.id) ? "已隐藏" : "已显示")
+            }
+            if series.count > 6 {
+                Menu("全部曲线（\(series.count)）") {
+                    ForEach(series) { item in
+                        Button { toggleSeries(item.id) } label: {
+                            Label(item.title, systemImage: hiddenSeriesIDs.contains(item.id) ? "circle" : "checkmark.circle.fill")
+                        }
+                    }
+                }
+                .menuStyle(.borderlessButton)
+                .font(.system(size: 11))
             }
         }
-        .scrollIndicators(.visible)
         .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func toggleSeries(_ id: String) {
+        isShowingModelDetails = false
+        selection = nil
+        isHoveringCard = false
+        if hiddenSeriesIDs.contains(id) {
+            hiddenSeriesIDs.remove(id)
+        } else if visibleSeries.count > 1 {
+            hiddenSeriesIDs.insert(id)
+        }
     }
 
     private func color(for series: UsageTrendSeries) -> Color {

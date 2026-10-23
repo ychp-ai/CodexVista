@@ -62,7 +62,6 @@ enum CodexPlanCatalog {
 
 struct SettingsView: View {
     private enum Layout {
-        static let labelWidth: CGFloat = 205
         static let controlWidth: CGFloat = 248
         static let columnSpacing: CGFloat = 20
         static let rowHeight: CGFloat = 56
@@ -96,27 +95,28 @@ struct SettingsView: View {
     @State private var isEditingSubscriptionDate = false
     @State private var showsRebuildConfirmation = false
     @State private var showsModelPricingExplanation = false
+    @State private var showsAllPlans = false
+    @State private var selectedCategory = 0
 
     var body: some View {
-        ScrollView {
-            CodexVistaGlassGroup(spacing: 24) {
-                VStack(alignment: .leading, spacing: 24) {
-                    settingsHeader
-                    appearanceSettings
-                    dashboardSettings
-                    statusBarSettings
-                    usageReminderSettings
-                    dataAndRefreshSettings
-                    softwareUpdateSettings
-                    planAndBillingSettings
-                    privacyNotice
-                }
-            }
-            .padding(.horizontal, 24)
-            .padding(.top, 22)
-            .padding(.bottom, 28)
+        TabView(selection: $selectedCategory) {
+            settingsPage { appearanceSettings }
+                .tabItem { Label("外观", systemImage: "paintpalette") }
+                .tag(0)
+            settingsPage { dashboardSettings; statusBarSettings }
+                .tabItem { Label("看板与摘要", systemImage: "rectangle.3.group") }
+                .tag(1)
+            settingsPage { usageReminderSettings }
+                .tabItem { Label("提醒", systemImage: "bell") }
+                .tag(2)
+            settingsPage { dataAndRefreshSettings; softwareUpdateSettings }
+                .tabItem { Label("数据与更新", systemImage: "externaldrive") }
+                .tag(3)
+            settingsPage { planAndBillingSettings; privacyNotice }
+                .tabItem { Label("订阅与关于", systemImage: "info.circle") }
+                .tag(4)
         }
-        .scrollIndicators(.automatic)
+        .padding(12)
         .frame(width: 640, height: 700)
         .background { CodexVistaBackdrop() }
         .task {
@@ -139,14 +139,31 @@ struct SettingsView: View {
         }
     }
 
+    private func settingsPage<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        ScrollView {
+            CodexVistaGlassGroup(spacing: 20) {
+                VStack(alignment: .leading, spacing: 20) { content() }
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+            .padding(16)
+        }
+        .scrollIndicators(.automatic)
+    }
+
+    private var visiblePlans: [CodexPlan] {
+        let current = CodexPlanCatalog.plans.filter { isCurrent($0) }
+        return showsAllPlans || current.isEmpty ? CodexPlanCatalog.plans : current
+    }
+
     private var appearanceSettings: some View {
         settingsSection("外观") {
             VStack(spacing: 0) {
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 3), spacing: 10) {
                     ForEach(AppSkinPreference.allCases) { skin in
                         CodexVistaSkinPreview(
                             skin: skin,
-                            isSelected: AppSkinPreference.resolved(from: skinRaw) == skin
+                            isSelected: AppSkinPreference.resolved(from: skinRaw) == skin,
+                            compact: true
                         ) { skinRaw = skin.rawValue }
                     }
                 }
@@ -589,7 +606,7 @@ struct SettingsView: View {
 
             settingsSection("Codex 套餐") {
                 VStack(spacing: 0) {
-                    ForEach(CodexPlanCatalog.plans) { plan in
+                    ForEach(visiblePlans) { plan in
                         planRow(plan)
                             .padding(.horizontal, Layout.cardHorizontalPadding)
                             .background {
@@ -617,7 +634,7 @@ struct SettingsView: View {
                                 }
                             }
 
-                        if plan.id != CodexPlanCatalog.plans.last?.id {
+                        if plan.id != visiblePlans.last?.id {
                             settingsDivider
                                 .padding(.horizontal, Layout.cardHorizontalPadding)
                         }
@@ -625,6 +642,14 @@ struct SettingsView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .settingsCard()
+                Button {
+                    showsAllPlans.toggle()
+                } label: {
+                    Label(showsAllPlans ? "收起套餐对比" : "查看全部套餐", systemImage: showsAllPlans ? "chevron.up" : "chevron.down")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(CodexVistaTheme.dashboardAccent)
+                .padding(.leading, 4)
             }
 
             settingsSection("其他计费方式") {
@@ -1093,7 +1118,7 @@ struct SettingsView: View {
             Text(detail)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .lineLimit(1)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -1174,9 +1199,10 @@ struct SettingsView: View {
     }
 
     private func multiSelectSegment(_ title: String, isOn: Binding<Bool>) -> some View {
-        selectionSegment(title, isSelected: isOn.wrappedValue) {
-            isOn.wrappedValue.toggle()
-        }
+        Toggle(title, isOn: isOn)
+            .toggleStyle(.checkbox)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 4)
     }
 
     private func settingsRow<Leading: View, Control: View>(
@@ -1185,13 +1211,14 @@ struct SettingsView: View {
     ) -> some View {
         HStack(alignment: .center, spacing: Layout.columnSpacing) {
             label()
-                .frame(width: Layout.labelWidth, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
             Spacer(minLength: 0)
 
             control()
                 .frame(width: Layout.controlWidth, alignment: .trailing)
         }
+        .padding(.vertical, 8)
         .frame(minHeight: Layout.rowHeight)
     }
 
@@ -1240,11 +1267,22 @@ struct SettingsView: View {
 }
 
 private struct ModelPricingExplanationView: View {
+    var isExpanded = false
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
-                Text("模型费用说明")
-                    .font(.headline)
+                HStack {
+                    Text("模型费用说明").font(.headline)
+                    Spacer()
+                    if !isExpanded {
+                        Button("在窗口中查看", systemImage: "arrow.up.right.square") {
+                            DetailReadingWindowController.shared.show(title: "模型费用说明") {
+                                ScrollView { ModelPricingExplanationView(isExpanded: true) }
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
                 Text("标准 API 价格 · 每 100 万 Token")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -1296,7 +1334,7 @@ private struct ModelPricingExplanationView: View {
             .font(.caption.weight(.medium))
         }
         .padding(14)
-        .frame(width: 500, alignment: .leading)
+        .frame(minWidth: 500, maxWidth: isExpanded ? .infinity : 500, alignment: .leading)
         .background(CodexVistaVisualEffect(style: .popover))
     }
 

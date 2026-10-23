@@ -3,6 +3,95 @@ import XCTest
 @testable import CodexVista
 
 final class DashboardQueryServiceTests: XCTestCase {
+    func testLatestReplyRatePersistsWithoutTimeWindowAndIgnoresRunningAndFutureReplies() throws {
+        let store = try makeStore()
+        let now = Date(timeIntervalSince1970: 86_430)
+        let endedAt = now.addingTimeInterval(-120)
+        let events = [
+            usage("older", at: now.addingTimeInterval(-600), total: 9_000, turnID: "older"),
+            usage("latest-1", at: now.addingTimeInterval(-300), total: 400, turnID: "latest"),
+            usage("latest-2", at: endedAt, total: 0, usage: .init(
+                uncachedInput: 120, cachedInput: 180, visibleOutput: 60, reasoning: 240
+            ), turnID: "latest"),
+            usage("running", at: now, total: 9_000, turnID: "running"),
+            usage("future", at: now.addingTimeInterval(172_800), total: 9_000, turnID: "future")
+        ]
+        let states = [
+            lifecycle("old-start", threadID: "thread-1", turnID: "older", kind: .started, at: now.addingTimeInterval(-900)),
+            lifecycle("old-end", threadID: "thread-1", turnID: "older", kind: .completed, at: now.addingTimeInterval(-600)),
+            lifecycle("start", threadID: "thread-1", turnID: "latest", kind: .started, at: endedAt.addingTimeInterval(-200)),
+            lifecycle("end", threadID: "thread-1", turnID: "latest", kind: .completed, at: endedAt),
+            lifecycle("running-start", threadID: "thread-1", turnID: "running", kind: .started, at: now.addingTimeInterval(-10)),
+            lifecycle("future-start", threadID: "thread-1", turnID: "future", kind: .started, at: now.addingTimeInterval(172_790)),
+            lifecycle("future-end", threadID: "thread-1", turnID: "future", kind: .completed, at: now.addingTimeInterval(172_800))
+        ]
+        let imported = batch(events: events, quotas: [], stateEvents: states)
+        try store.commit(imported)
+        try store.commit(imported)
+        let query = DashboardQueryService(store: store)
+        let rate = try XCTUnwrap(query.snapshot(now: now, calendar: CodexUsageCalendar.utc).tokenConsumptionRate)
+        XCTAssertEqual(rate.totalTokens, 1_000)
+        XCTAssertEqual(rate.durationMilliseconds, 200_000)
+        XCTAssertEqual(rate.tokensPerSecond, 5)
+        XCTAssertEqual(rate.measuredAt, endedAt)
+        XCTAssertEqual(try query.snapshot(now: now.addingTimeInterval(86_400), calendar: CodexUsageCalendar.utc).tokenConsumptionRate, rate)
+    }
+
+    func testLatestReplyRateUpdatesOnCompletionAndSkipsMissingDuration() throws {
+        let store = try makeStore()
+        let date = { Date(timeIntervalSince1970: $0) }
+        try store.commit(batch(events: [
+            usage("first", at: date(10), total: 100, turnID: "first"),
+            usage("second", at: date(30), total: 900, turnID: "second"),
+            usage("no-duration", at: date(40), total: 1_000, turnID: "no-duration"),
+            usage("zero-duration", at: date(50), total: 1_000, turnID: "zero-duration")
+        ], quotas: [], stateEvents: [
+            lifecycle("first-start", threadID: "thread-1", turnID: "first", kind: .started, at: date(0)),
+            lifecycle("first-end", threadID: "thread-1", turnID: "first", kind: .completed, at: date(10)),
+            lifecycle("second-start", threadID: "thread-1", turnID: "second", kind: .started, at: date(10)),
+            lifecycle("second-end", threadID: "thread-1", turnID: "second", kind: .completed, at: date(30)),
+            lifecycle("missing-start", threadID: "thread-1", turnID: "no-duration", kind: .completed, at: date(40)),
+            lifecycle("zero-start", threadID: "thread-1", turnID: "zero-duration", kind: .started, at: date(50)),
+            lifecycle("zero-end", threadID: "thread-1", turnID: "zero-duration", kind: .completed, at: date(50))
+        ]))
+        let query = DashboardQueryService(store: store)
+        XCTAssertEqual(try query.snapshot(now: date(20), calendar: .current).tokenConsumptionRate?.tokensPerSecond, 10)
+        let snapshot = try query.snapshot(now: date(30), calendar: .current)
+        XCTAssertEqual(snapshot.tokenConsumptionRate?.tokensPerSecond, 45)
+        XCTAssertEqual(try query.snapshot(now: date(100), calendar: .current).tokenConsumptionRate, snapshot.tokenConsumptionRate)
+        let task = try XCTUnwrap(snapshot.workspaceUsage.allTime.entries.first?.conversations.first)
+        XCTAssertEqual(try XCTUnwrap(task.averageTokensPerSecond), 1_000.0 / 30, accuracy: 0.0001)
+        XCTAssertEqual(task.replies.map(\.averageTokensPerSecond), [45, 10])
+        let incompleteTask = try XCTUnwrap(query.snapshot(now: date(100), calendar: .current).workspaceUsage.allTime.entries.first?.conversations.first)
+        XCTAssertNil(incompleteTask.averageTokensPerSecond)
+        XCTAssertNil(try query.snapshot(now: date(-1), calendar: .current).tokenConsumptionRate)
+    }
+
+    func testLatestReplyRateIncludesSubagentsAndMultipleWorkspacesOnce() throws {
+        let store = try makeStore()
+        let date = { Date(timeIntervalSince1970: $0) }
+        try store.commit(batch(events: [
+            usage("parent-a", at: date(20), total: 100, threadID: "parent", turnID: "turn"),
+            usage("parent-b", at: date(30), total: 200, project: .init(id: "other", name: "Other"), threadID: "parent", turnID: "turn"),
+            usage("child", at: date(25), total: 300, threadID: "child", turnID: "child-turn")
+        ], quotas: [], stateEvents: [
+            lifecycle("parent-start", threadID: "parent", turnID: "turn", kind: .started, at: date(0)),
+            lifecycle("child-start", threadID: "child", turnID: "child-turn", kind: .started, at: date(10)),
+            lifecycle("child-end", threadID: "child", turnID: "child-turn", kind: .completed, at: date(25)),
+            lifecycle("parent-end", threadID: "parent", turnID: "turn", kind: .completed, at: date(30))
+        ], sessions: [
+            session(threadID: "parent", updatedAtMilliseconds: 30_000),
+            session(threadID: "child", createdAtMilliseconds: 10_000, updatedAtMilliseconds: 25_000)
+        ]))
+        let rate = try XCTUnwrap(DashboardQueryService(store: store).snapshot(
+            now: date(100), calendar: .current,
+            parentThreadIDsByChildThreadID: ["child": "parent"]
+        ).tokenConsumptionRate)
+        XCTAssertEqual(rate.totalTokens, 600)
+        XCTAssertEqual(rate.durationMilliseconds, 30_000)
+        XCTAssertEqual(rate.tokensPerSecond, 20)
+    }
+
     func testQuotaEstimateMatchesIntervalsAndDeduplicatesObservations() throws {
         let events = [quotaSample(1, 0.8), quotaSample(2, 0.8), quotaSample(3, 0.78),
                       quotaSample(3, 0.78, id: "duplicate"), quotaSample(4, 0.77)]

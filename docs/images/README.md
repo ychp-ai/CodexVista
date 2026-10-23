@@ -1,6 +1,6 @@
 # 文档截图与复现
 
-更新日期：2026-10-08。README、功能说明和外观说明共用本目录的图片；当前图片来自工作区的 SwiftUI / AppKit 组件，使用固定日期的匿名示例数据，不包含真实任务、项目路径、会话内容或本机用量。
+更新日期：2026-10-23。README、功能说明和外观说明共用本目录的图片；当前图片来自工作区的 SwiftUI / AppKit 组件，使用固定日期的匿名示例数据，不包含真实任务、项目路径、会话内容或本机用量。
 
 ## 一次性导出
 
@@ -22,8 +22,8 @@ python3 script/export_screenshots.py
 - 数据、通知与更新服务全部注入替身，不扫描 `.codex`，不打开正式数据库，不请求系统通知权限，不查询 GitHub 或下载更新。
 - 截图应用使用独立 Bundle ID 和进程内易失偏好，不修改正式应用的外观、订阅日期、通知或刷新设置。
 - 正式源码和 Target 不变。脚本仅在临时副本中开放私有组件与状态入口、固定日期，便于直接展示各个标签和悬浮明细。
-- 页面标题中的“示例数据”属于文档标识，不是产品系统标题栏。设置长图展开现有分区，单独的悬浮卡用于展示完整内容，不模拟实际鼠标或窗口定位。
-- 重建确认图使用原生 `NSAlert` 显示设置中的相同文案，系统样式可能因 macOS 版本而不同；没有点击确认或执行数据清理。
+- 页面标题中的“示例数据”属于文档标识，不是产品系统标题栏。设置分类截图直接展示生产内容，原生工具栏另行在应用中验证，单独的悬浮卡用于展示完整内容，不模拟实际鼠标或窗口定位。
+- 原生设置标签和重建确认框的离屏材质无法可靠捕获，因此不纳入当前截图清单；通过实际应用核对。
 - 图片使用 2× 像素比例。源码与场景固定，但字体栅格化、系统控件和材质可能随 macOS / Xcode 版本变化，因此不要求跨机器逐像素相同。
 
 ## 覆盖清单
@@ -38,8 +38,10 @@ python3 script/export_screenshots.py
 | 趋势和日历 | [趋势节点与额度估算](codexvista-trend-hover.png)、[展开模型明细](codexvista-trend-hover-details.png)、[日期明细](codexvista-calendar-day-hover.png)、[图例明细](codexvista-calendar-legend-hover.png) |
 | Skill 细分 | [命名空间调用构成](codexvista-skill-breakdown-hover.png) |
 | 模型 | [前五名预览](codexvista-model-preview.png)、[完整排行](codexvista-model-hover-details.png)、[Token 明细](codexvista-model-token-hover-details.png)、[费用明细](codexvista-model-cost-hover-details.png)、[价格目录](codexvista-model-pricing-popover.png) |
-| 设置分区 | [外观、看板与摘要](codexvista-settings-appearance.png)、[额度提醒](codexvista-settings-reminders.png)、[数据与更新](codexvista-settings-data.png)、[订阅与套餐](codexvista-settings-plans.png) |
-| 设置总览与确认 | [全部设置长图](codexvista-settings.png)、[重建确认同文案示例](codexvista-rebuild-confirmation.png) |
+| 设置分区 | [外观](codexvista-settings-appearance.png)、[看板与摘要](codexvista-settings-dashboard.png)、[额度提醒](codexvista-settings-reminders.png)、[数据与更新](codexvista-settings-data.png)、[订阅与套餐](codexvista-settings-plans.png) |
+| 设置入口 | [外观分类内容](codexvista-settings.png) |
+| 最小窗口与密集数据 | [30 条任务](layout/main-dense.png)、[项目回复](layout/project-replies.png)、[任务回复](layout/task-回复明细.png)、[长工具名称](layout/activity-long-name.png) |
+| 调用链与阅读窗口 | [窄调用链](layout/reply-trace-880.png)、[宽调用链](layout/reply-trace-1040.png)、[慢工具排行](layout/reply-trace-slow-tools.png)、[完整每日用量](layout/daily-reading.png) |
 | 经典与水墨 | [经典浅色](themes/codexvista-light.png)、[经典深色](themes/codexvista-dark.png)、[水墨浅色](themes/codexvista-ink-light.png) |
 | 青瓷与暮霞 | [青瓷浅色](themes/codexvista-celadon-light.png)、[青瓷深色](themes/codexvista-celadon-dark.png)、[暮霞浅色](themes/codexvista-dusk-light.png)、[暮霞深色](themes/codexvista-dusk-dark.png) |
 | 固定色系与摘要 | [未来科技](themes/codexvista-cyber-dark.png)、[仙侠](themes/codexvista-xianxia-light.png)、[全部摘要配色](themes/codexvista-summary-themes.png) |
@@ -50,6 +52,6 @@ python3 script/export_screenshots.py
 
 新增页面或更改入口后，应同步修改 `DocumentationCapture.swift` 的导出清单及本文引用，再重新运行脚本。发布版本从 `Config/Version.xcconfig` 读取，不在导出代码中硬编码。
 
-导出后检查主要页面、全部皮肤、长设置页和悬浮卡是否存在裁切、重叠、乱码或遗漏，同时检查相对链接及 `git diff --check`。组件截图不能证明真实鼠标悬浮、键盘操作、通知投递或刘海屏幕定位正确；这些行为通过项目脚本构建最新 App 后单独验证。
+导出后检查主要页面、全部皮肤、设置分类和悬浮卡是否存在裁切、重叠、乱码或遗漏，同时检查相对链接及 `git diff --check`。组件截图不能证明真实鼠标悬浮、键盘操作、通知投递或刘海屏幕定位正确；这些行为通过项目脚本构建最新 App 后单独验证。
 
 旧版产品截图与早期模型排行设计草图已由当前组件图片替换，避免把历史设计当作已实现界面。

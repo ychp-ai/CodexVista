@@ -78,8 +78,8 @@ struct TodayTaskPanel: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text("今日任务")
                     .font(.system(size: 13, weight: .semibold))
-                Text("进行中的任务优先 · 点击查看详情，点击外部关闭")
-                    .font(.system(size: 8.5, weight: .medium))
+                Text("进行中的任务优先")
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(CodexVistaTheme.dashboardMutedText)
             }
 
@@ -199,13 +199,13 @@ struct TodayTaskPanel: View {
         isSelected: Bool = false
     ) -> some View {
         let font: Font = isHeader
-            ? .system(size: 9, weight: .semibold)
-            : .system(size: 10.5, weight: .medium)
+            ? .system(size: 12, weight: .semibold)
+            : .system(size: 12, weight: .medium)
         let textColor = isHeader
             ? CodexVistaTheme.dashboardMutedText
             : CodexVistaTheme.dashboardPrimaryText.opacity(0.88)
 
-        return HStack(spacing: 10) {
+        return HStack(spacing: 8) {
             HStack(spacing: 5) {
                 if let statusIcon {
                     Image(systemName: statusIcon)
@@ -215,7 +215,7 @@ struct TodayTaskPanel: View {
                     .lineLimit(1)
             }
             .foregroundStyle(isHeader ? textColor : statusColor)
-            .frame(width: 70, alignment: .leading)
+            .frame(width: 62, alignment: .leading)
 
             HStack(spacing: 7) {
                 if !isHeader {
@@ -224,11 +224,12 @@ struct TodayTaskPanel: View {
                         .foregroundStyle(CodexVistaTheme.dashboardAccentSecondary)
                 }
                 Text(task)
-                    .font(isHeader ? font : .system(size: 10.5, weight: .semibold))
+                    .help(task)
+                    .font(isHeader ? font : .system(size: 12, weight: .semibold))
                     .lineLimit(2)
                     .truncationMode(.tail)
             }
-            .frame(minWidth: 190, maxWidth: .infinity, alignment: .leading)
+            .frame(minWidth: 170, maxWidth: .infinity, alignment: .leading)
 
             HStack(spacing: 6) {
                 if !isHeader {
@@ -237,24 +238,25 @@ struct TodayTaskPanel: View {
                         .foregroundStyle(CodexVistaTheme.dashboardAccentSecondary)
                 }
                 Text(workspace)
+                    .help(workspace)
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
-            .frame(width: 154, alignment: .leading)
+            .frame(width: 120, alignment: .leading)
 
             Text(lastUpdated)
                 .monospacedDigit()
-                .frame(width: 88, alignment: .leading)
+                .frame(width: 70, alignment: .leading)
 
             Text(replies)
                 .monospacedDigit()
-                .frame(width: 42, alignment: .trailing)
+                .frame(width: 36, alignment: .trailing)
 
             Text(aiWorktime)
                 .font(
                     isHeader
                         ? font
-                        : .system(size: 10.5, weight: .semibold, design: .rounded)
+                        : .system(size: 12, weight: .semibold, design: .rounded)
                 )
                 .foregroundStyle(
                     isHeader ? textColor : CodexVistaTheme.dashboardAccentSecondary
@@ -262,7 +264,7 @@ struct TodayTaskPanel: View {
                 .monospacedDigit()
                 .lineLimit(1)
                 .minimumScaleFactor(0.82)
-                .frame(width: 68, alignment: .trailing)
+                .frame(width: 64, alignment: .trailing)
                 .help(aiWorktimeHelp)
 
             Text(tokens)
@@ -278,11 +280,11 @@ struct TodayTaskPanel: View {
                 }
             }
             .foregroundStyle(isHeader ? textColor : CodexVistaTheme.dashboardAccent)
-            .frame(width: 68, alignment: .trailing)
+            .frame(width: 64, alignment: .trailing)
         }
         .font(font)
         .foregroundStyle(textColor)
-        .frame(maxWidth: .infinity, minHeight: isHeader ? 26 : 50)
+        .frame(maxWidth: .infinity, minHeight: isHeader ? 28 : 44)
         .padding(.horizontal, 6)
         .background(
             isSelected ? CodexVistaTheme.dashboardAccent.opacity(0.09) : Color.clear,
@@ -310,7 +312,7 @@ struct TodayTaskPanel: View {
                 .font(.system(size: 9.5, weight: .medium))
                 .foregroundStyle(CodexVistaTheme.dashboardMutedText)
             Text(value)
-                .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .foregroundStyle(CodexVistaTheme.dashboardAccent)
                 .monospacedDigit()
         }
@@ -345,19 +347,46 @@ struct TodayTaskDetailView: View {
     let task: TodayTaskUsageEntry
     let onClose: () -> Void
     let onReplyHover: (ProjectReplyDetailRow?) -> Void
+    @State private var selectedDetailTab = "回复明细"
 
     var body: some View {
         VStack(spacing: 0) {
             titleBar
 
+            VStack(alignment: .leading, spacing: 12) {
+                taskHeader
+                HStack(spacing: 18) {
+                    Label("\(TokenFormatter.compact(task.conversation.tokens)) Token", systemImage: "number")
+                    Label(TokenFormatter.compactWorktime(task.aiWorktimeMilliseconds), systemImage: "stopwatch")
+                    Label("\(task.conversation.replies.count) 次回复", systemImage: "bubble.left")
+                    Spacer(minLength: 0)
+                }
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+                Picker("详情内容", selection: $selectedDetailTab) {
+                    Text("回复明细").tag("回复明细")
+                    Text("用量与调用").tag("用量与调用")
+                    Text("关联目录").tag("关联目录")
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .onChange(of: selectedDetailTab) { _, _ in onReplyHover(nil) }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    taskHeader
-                    summaryCards
-                    tokenBreakdownCard
-                    activityUsageCard
-                    workspaceDirectoryCard
-                    replyDetailCard
+                    switch selectedDetailTab {
+                    case "用量与调用":
+                        summaryCards
+                        tokenBreakdownCard
+                        activityUsageCard
+                    case "关联目录":
+                        workspaceDirectoryCard
+                    default:
+                        replyDetailCard
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
@@ -437,13 +466,29 @@ struct TodayTaskDetailView: View {
 
             Spacer()
 
-            Label(status.title, systemImage: ProjectReplyPresentation.icon(task.status))
-                .font(.system(size: 10.5, weight: .semibold))
-                .foregroundStyle(status.color)
-                .padding(.horizontal, 11)
-                .frame(height: 28)
-                .background(status.color.opacity(0.09), in: Capsule())
-                .overlay { Capsule().stroke(status.color.opacity(0.28), lineWidth: 1) }
+            VStack(alignment: .trailing, spacing: 10) {
+                Label(status.title, systemImage: ProjectReplyPresentation.icon(task.status))
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundStyle(status.color)
+                    .padding(.horizontal, 11)
+                    .frame(height: 28)
+                    .background(status.color.opacity(0.09), in: Capsule())
+                    .overlay { Capsule().stroke(status.color.opacity(0.28), lineWidth: 1) }
+
+                if let row = replyRows.first(where: { $0.reply.traceThreadID != nil }) {
+                    Button {
+                        onReplyHover(nil)
+                        ReplyTraceWindowController.shared.show(row: row)
+                    } label: {
+                        Label("最新回复调用链", systemImage: "point.3.connected.trianglepath.dotted")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .tint(CodexVistaTheme.dashboardAccent)
+                    .fixedSize()
+                    .help("查看最新回复的调用链；其他回复可在下方回复明细中选择")
+                }
+            }
         }
         .padding(.horizontal, 2)
     }
@@ -457,7 +502,8 @@ struct TodayTaskDetailView: View {
                 "今日 Token",
                 value: TokenFormatter.compact(task.conversation.tokens),
                 icon: "number.square.fill",
-                tint: CodexVistaTheme.dashboardAccent
+                tint: CodexVistaTheme.dashboardAccent,
+                tokenRate: task.conversation.averageTokensPerSecond.map(TokenFormatter.rate) ?? "—"
             )
             metricCard(
                 "耗时",
@@ -488,7 +534,9 @@ struct TodayTaskDetailView: View {
         }
     }
 
-    private func metricCard(_ title: String, value: String, icon: String, tint: Color) -> some View {
+    private func metricCard(
+        _ title: String, value: String, icon: String, tint: Color, tokenRate: String? = nil
+    ) -> some View {
         HStack(spacing: 10) {
             Image(systemName: icon)
                 .font(.system(size: 18, weight: .medium))
@@ -503,7 +551,24 @@ struct TodayTaskDetailView: View {
                     .font(.system(size: 18, weight: .semibold, design: .rounded))
                     .monospacedDigit()
             }
-            Spacer(minLength: 0)
+            Spacer(minLength: 12)
+            if let tokenRate {
+                VStack(alignment: .trailing, spacing: 3) {
+                    Text("平均速率")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        Text(tokenRate)
+                            .font(.system(size: 18, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                        Text("Token/s")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+                        TokenRateInfoButton(explanation: .todayTask)
+                    }
+                    .lineLimit(1)
+                }
+            }
         }
         .padding(.horizontal, 12)
         .frame(maxWidth: .infinity, minHeight: 66)

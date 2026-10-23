@@ -79,6 +79,31 @@ private extension DashboardSnapshot {
 }
 
 final class TokenFormatterTests: XCTestCase {
+    func testTokenRateFormattingPreservesFractionalAndSmallPositiveRates() {
+        XCTAssertEqual(TokenFormatter.rate(0), "0")
+        XCTAssertEqual(TokenFormatter.rate(1.0 / 60), "<0.1")
+        XCTAssertEqual(TokenFormatter.rate(12.25), "12.2")
+        XCTAssertEqual(TokenFormatter.rate(1_250), "1.2K")
+        XCTAssertEqual(TokenFormatter.rate(1_250_000), "1.2M")
+        XCTAssertEqual(TokenFormatter.rate(.infinity), "—")
+        XCTAssertEqual(TokenFormatter.rate(-1), "—")
+    }
+
+    func testAverageTokenRateUsesActualDurationAndRequiresValidTiming() {
+        XCTAssertEqual(TokenConsumptionRate.average(totalTokens: 1_000, durationMilliseconds: 250), 4_000)
+        XCTAssertEqual(TokenConsumptionRate.average(totalTokens: 0, durationMilliseconds: 1_000), 0)
+        XCTAssertNil(TokenConsumptionRate.average(totalTokens: 100, durationMilliseconds: 0))
+        XCTAssertNil(TokenConsumptionRate.average(totalTokens: 100, durationMilliseconds: -1))
+        XCTAssertNil(TokenConsumptionRate.average(totalTokens: -1, durationMilliseconds: 1_000))
+        XCTAssertEqual(TokenFormatter.rateWithUnit(1_250), "1.2K Token/s")
+        XCTAssertEqual(TokenFormatter.rateWithUnit(nil), "—")
+        XCTAssertEqual(TokenFormatter.rateWithUnit(.infinity), "—")
+        XCTAssertNil(ProjectConversationUsage(
+            shortThreadID: "legacy", displayTitle: nil, tokens: 100,
+            lastMessageAtMilliseconds: nil, unattributedTokens: 100
+        ).averageTokensPerSecond)
+    }
+
     func testTokenCompositionDistinguishesMissingDataFromZeroUsage() {
         let missing = TokenCompositionSegment.make(breakdown: nil)
         let empty = TokenCompositionSegment.make(

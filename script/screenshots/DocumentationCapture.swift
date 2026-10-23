@@ -39,10 +39,10 @@ enum DocumentationCapture {
                         width: 1060, height: 840,
                         DashboardContentView(snapshot: snapshot, selectedRange: tab == .trend ? .thirtyDays : .sevenDays, selectedAnalyticsTab: tab))
         }
-        try capture("codexvista-dashboard-compact.png", title: "最小窗口 · Token 构成", width: 920, height: 690,
-                    DashboardContentView(snapshot: snapshot, selectedAnalyticsTab: .todayTasks))
+        try capture("codexvista-dashboard-compact.png", title: "最小窗口 · 紧凑概览", width: 920, height: 690,
+                    DashboardContentView(snapshot: snapshot, selectedAnalyticsTab: .todayTasks, showsExpandedOverview: false))
         try capture("codexvista-subscription-composition.png", title: "订阅周期 · Token 构成", width: 920, height: 690,
-                    DashboardContentView(snapshot: snapshot, selectedPeriodID: "subscriptionCycle"))
+                    DashboardContentView(snapshot: snapshot, selectedPeriodID: "subscriptionCycle", showsExpandedOverview: true))
         let workspace = DocumentationFixture.workspaces[0]
         let conversation = workspace.conversations[0]
         let replyRow = ProjectReplyDetailRow(id: "example-row", conversationTitle: conversation.displayTitle!,
@@ -97,21 +97,56 @@ enum DocumentationCapture {
         try capture("codexvista-popover.png", title: "菜单栏弹窗", width: 390,
                     MenuBarPopoverView(store: store, updateService: updates))
 
-        try capture("codexvista-settings-appearance.png", title: "外观、看板与摘要", width: 740,
-                    VStack(spacing: 24) { settings.appearanceSettings; settings.dashboardSettings; settings.statusBarSettings }.padding(24))
-        try capture("codexvista-settings-reminders.png", title: "额度提醒", width: 740,
-                    settings.usageReminderSettings.padding(24))
-        try capture("codexvista-settings-data.png", title: "数据与软件更新", width: 740,
-                    VStack(spacing: 24) { settings.dataAndRefreshSettings; settings.softwareUpdateSettings }.padding(24))
-        try capture("codexvista-settings-plans.png", title: "订阅周期与套餐", width: 740,
-                    settings.planAndBillingSettings.padding(24))
-        try capture("codexvista-settings.png", title: "全部设置", width: 740,
-                    VStack(alignment: .leading, spacing: 24) {
-                        settings.settingsHeader; settings.appearanceSettings; settings.dashboardSettings
-                        settings.statusBarSettings; settings.usageReminderSettings
-                        settings.dataAndRefreshSettings; settings.softwareUpdateSettings
-                        settings.planAndBillingSettings; settings.privacyNotice
-                    }.padding(24))
+        let categories = [("appearance", "外观"), ("dashboard", "看板与摘要"), ("reminders", "额度提醒"),
+                          ("data", "数据与更新"), ("plans", "订阅与关于")]
+        // Native Settings toolbar is checked in the product. Offscreen capture renders
+        // each production content page directly, since NSTabView draws a black strip.
+        let settingsPages = [
+            AnyView(settings.settingsPage { settings.appearanceSettings }),
+            AnyView(settings.settingsPage { settings.dashboardSettings; settings.statusBarSettings }),
+            AnyView(settings.settingsPage { settings.usageReminderSettings }),
+            AnyView(settings.settingsPage { settings.dataAndRefreshSettings; settings.softwareUpdateSettings }),
+            AnyView(settings.settingsPage { settings.planAndBillingSettings; settings.privacyNotice })
+        ]
+        for (index, category) in categories.enumerated() {
+            try capture("codexvista-settings-\(category.0).png", title: category.1, width: 640, height: 700,
+                settingsPages[index].padding(12))
+        }
+        try capture("codexvista-settings.png", title: "设置 · 外观", width: 640, height: 700, settingsPages[0].padding(12))
+        try capture("layout/daily-reading.png", title: "完整用量明细", width: 620, height: 640,
+                    DailyUsageHoverCard(usage: usage, dateText: "2026年9月4日", showsModelDetails: .constant(true), isExpanded: true))
+        for tab in DashboardAnalyticsTab.allCases {
+            try capture("layout/main-\(tab).png", title: "最小窗口 · \(tab.rawValue)", width: 920, height: 690,
+                        DashboardContentView(snapshot: snapshot, selectedAnalyticsTab: tab))
+        }
+        for tab in ProjectDetailTab.allCases {
+            try capture("layout/project-\(tab).png", title: "最小项目详情 · \(tab.rawValue)", width: 760, height: 560,
+                        ProjectDetailView(entry: workspace, rank: 1, range: .sevenDays,
+                                          onClose: {}, onDetailHover: { _ in }, selectedTab: tab))
+        }
+        let dense = DocumentationFixture.denseWorkspace
+        for tab in ["回复明细", "用量与调用", "关联目录"] {
+            try capture("layout/task-\(tab).png", title: "最小任务详情 · \(tab)", width: 760, height: 560,
+                TodayTaskDetailView(task: .init(workspace: dense, conversation: dense.conversations[0]),
+                                   onClose: {}, onReplyHover: { _ in }, selectedDetailTab: tab))
+        }
+        let denseRanking = WorkspaceUsageRanking(entries: [dense], totalTokens: dense.tokens, workspaceCount: 1, projectCount: 1)
+        let denseSnapshot = DashboardSnapshot(planName: snapshot.planName, updatedText: snapshot.updatedText,
+            periods: snapshot.periods, quotas: snapshot.quotas, models: snapshot.models, dailyUsage: snapshot.dailyUsage,
+            workspaceUsage: .init(today: denseRanking, sevenDays: denseRanking, thirtyDays: denseRanking, allTime: denseRanking))
+        try capture("layout/main-dense.png", title: "30 条任务 · 最小窗口 · 手动收起概览", width: 920, height: 690,
+                    DashboardContentView(snapshot: denseSnapshot, showsExpandedOverview: false))
+        let longActivity = ActivityRanking(skills: DocumentationFixture.activity.skills,
+            tools: [.init(name: String(repeating: "example_namespace_", count: 5), count: 999)])
+        try capture("layout/activity-long-name.png", title: "长工具名称", width: 880, height: 400,
+                    ActivityRankingPanel(ranking: longActivity))
+        for width: CGFloat in [880, 1_040] {
+            try capture("layout/reply-trace-\(Int(width)).png", title: "回复调用链", width: width, height: 560,
+                        ReplyTraceContent(trace: DocumentationFixture.trace, totalTokens: 40_000))
+        }
+        try capture("layout/reply-trace-slow-tools.png", title: "调用链 · 慢工具排行", width: 420,
+                    ReplyTraceSlowTools(nodes: DocumentationFixture.trace.slowestTools,
+                                        traceStart: DocumentationFixture.trace.start, onSelect: { _ in }))
 
         let presentation = StatusItemPresentation(snapshot: snapshot, configuration: .standard, now: DocumentationFixture.now)
         try capture("codexvista-status-bar.png", title: "状态栏摘要", width: 350,
@@ -162,7 +197,6 @@ enum DocumentationCapture {
         try capture("codexvista-empty.png", title: "尚无本地数据", width: 800, height: 450,
                     DashboardView(store: emptyStore).unavailableView("未检测到 Codex 数据", systemImage: "tray",
                         description: "使用 Codex 后刷新即可在这里查看 Token 用量。"))
-        try captureRebuildConfirmation()
         let data = try JSONSerialization.data(withJSONObject: captures, options: [.prettyPrinted, .sortedKeys])
         try data.write(to: output.appendingPathComponent("complete.json"))
     }
@@ -227,19 +261,4 @@ enum DocumentationCapture {
         captures.append(["path": path, "title": title, "width": bitmap.pixelsWide, "height": bitmap.pixelsHigh])
     }
 
-    static func captureRebuildConfirmation() throws {
-        // Native AppKit alert, same title and message as SettingsView. No button is pressed.
-        let alert = NSAlert()
-        alert.messageText = "清空并重新抓取所有数据？"
-        alert.informativeText = "这会清空 CodexVista 已抓取的用量、额度、会话和 Skills / Tools 统计，然后从本机 Codex 数据全量重新抓取。不会删除 Codex 原始数据。"
-        alert.addButton(withTitle: "取消")
-        alert.addButton(withTitle: "清空并重新抓取")
-        alert.alertStyle = .warning
-        alert.layout()
-        alert.window.setFrameOrigin(NSPoint(x: -16_000, y: 0))
-        alert.window.orderFrontRegardless()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
-        try save(alert.window.contentView!, path: "codexvista-rebuild-confirmation.png", title: "原生重建确认提示（同文案示例）")
-        alert.window.orderOut(nil)
-    }
 }

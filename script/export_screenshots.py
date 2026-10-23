@@ -33,6 +33,7 @@ def main():
             source = path.read_text()
             source = re.sub(r"\b(?:fileprivate|private)(?:\(set\))?\s+", "", source)
             source = re.sub(r"\bDate\(\)", "DocumentationFixture.now", source)
+            source = source.replace("containing: .now,", "containing: DocumentationFixture.now,")
             destination = stage / path.name
             destination.write_text(source)
             copied.append(str(destination))

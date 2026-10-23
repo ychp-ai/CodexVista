@@ -1,0 +1,112 @@
+{
+  "audit_date": "2026-10-23",
+  "source_commit": "da3123f3c297a1f7b9359feaa00229b22b092f2d",
+  "batch_source_sha256": "818bc72e88cd6045341658db26a50882a86f57d05c1671964692d193e9dd2b4e",
+  "fixture_date": "2026-09-04T08:00:00Z",
+  "method": "Current SwiftUI/AppKit components, isolated documentation app, synthetic data; no live Codex reads",
+  "scale": 2,
+  "batch_capture_count": 67,
+  "notes": [
+    "Source commit identifies the base; captures include uncommitted workspace changes.",
+    "Eleven selected batch captures plus one separate trace component example are preserved.",
+    "Document captions are not application title bars. Static captures do not verify native interaction."
+  ],
+  "captures": [
+    {
+      "height": 1464,
+      "path": "audit-main-todayTasks.png",
+      "title": "最小窗口 · 今日任务",
+      "width": 1840,
+      "sha256": "e87e380e9a185f41b8ad784d7e22307f5ca9be4afeb00929c4e1432d67df8d0b",
+      "caption_height_pt": 42
+    },
+    {
+      "height": 1464,
+      "path": "audit-main-trend.png",
+      "title": "最小窗口 · 用量趋势",
+      "width": 1840,
+      "sha256": "2cd551f474c2790b5579301d8da6e58f825ab6c306b78abb9d23c69ebab71a0b",
+      "caption_height_pt": 42
+    },
+    {
+      "height": 1464,
+      "path": "audit-main-activity.png",
+      "title": "最小窗口 · Skills / Tools",
+      "width": 1840,
+      "sha256": "2e092949660a1a7bcc8325249e6d41632b897c70d79768cc16baf821e7537113",
+      "caption_height_pt": 42
+    },
+    {
+      "height": 1464,
+      "path": "audit-main-project.png",
+      "title": "最小窗口 · 项目用量",
+      "width": 1840,
+      "sha256": "d733c1f3376a5ae0823da3946b53f09755459a8606f111336801cb2c2e24335e",
+      "caption_height_pt": 42
+    },
+    {
+      "height": 1204,
+      "path": "audit-project-overview-760.png",
+      "title": "详情 760 · 概览",
+      "width": 1520,
+      "sha256": "7431792c7babb717cc234c4db554cb0ce35e9e1b5dfc7d296ace25a5181e6766",
+      "caption_height_pt": 42
+    },
+    {
+      "height": 1444,
+      "path": "audit-project-conversations-820.png",
+      "title": "详情 820 · 任务明细",
+      "width": 1640,
+      "sha256": "ffe3c67b24bde1af4f082474b0fa47fd36e220feca4624fce87856d789f832fa",
+      "caption_height_pt": 42
+    },
+    {
+      "height": 1484,
+      "path": "codexvista-reply-details.png",
+      "title": "项目 · 回复明细",
+      "width": 2240,
+      "sha256": "2446fe775a87c0a342e0d7c46bfc443be8f0d1005dd105f4a45d9cc532538860",
+      "caption_height_pt": 42
+    },
+    {
+      "height": 1204,
+      "path": "audit-task-760.png",
+      "title": "任务详情 · 760",
+      "width": 1520,
+      "sha256": "de95b36bd917ba3aca8c84952b782a8aaa4d4b4ac1c31395959f2555e1cf1ae6",
+      "caption_height_pt": 42
+    },
+    {
+      "height": 1484,
+      "path": "audit-settings-window.png",
+      "title": "设置 · 实际视口",
+      "width": 1280,
+      "sha256": "aaacf818914ae01864d0c82d1fd1b09159ff2243d014ebb29c404eb48f6a09e1",
+      "caption_height_pt": 42
+    },
+    {
+      "height": 1530,
+      "path": "codexvista-settings-plans.png",
+      "title": "订阅周期与套餐",
+      "width": 1480,
+      "sha256": "06ce65f4578942c458b5cd3865143312d3297b891883cc28b6b18b9f45778eb1",
+      "caption_height_pt": 42
+    },
+    {
+      "height": 1414,
+      "path": "codexvista-popover.png",
+      "title": "菜单栏弹窗",
+      "width": 780,
+      "sha256": "bdf5bb8a163c7ee4272bcce6ebc51bacda70eeeb92f52312b8278ad0e69516a1",
+      "caption_height_pt": 42
+    },
+    {
+      "path": "audit-reply-trace.png",
+      "title": "回复调用链匿名组件示例",
+      "width": 2080,
+      "height": 1340,
+      "sha256": "d4a2ee010de516228ce7c938c562a293af58f5e833f0326600583f3b9b6d9be0",
+      "method": "Separate synthetic ReplyTraceContent component capture; custom example header, not a complete native sheet; excluded from batch source fingerprint."
+    }
+  ]
+}

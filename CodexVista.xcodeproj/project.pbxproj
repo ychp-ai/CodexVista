@@ -31,6 +31,7 @@
 		A00000000000000000000048 /* ProjectDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000048 /* ProjectDetailView.swift */; };
 		A00000000000000000000049 /* ProjectDetailWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000049 /* ProjectDetailWindowController.swift */; };
 		A00000000000000000000050 /* ProjectConversationHoverCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000050 /* ProjectConversationHoverCard.swift */; };
+		A00000000000000000000092 /* TokenRateInfoButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000092 /* TokenRateInfoButton.swift */; };
 		A00000000000000000000051 /* TodayTaskPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000051 /* TodayTaskPanel.swift */; };
 		A00000000000000000000009 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000011 /* SettingsView.swift */; };
 		A00000000000000000000012 /* CodexEventDecoderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000012 /* CodexEventDecoderTests.swift */; };
@@ -60,6 +61,11 @@
 		A00000000000000000000052 /* NotchSummaryController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000052 /* NotchSummaryController.swift */; };
 		A00000000000000000000053 /* AppIdentityMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000053 /* AppIdentityMigration.swift */; };
 		A00000000000000000000054 /* AppIdentityMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000054 /* AppIdentityMigrationTests.swift */; };
+		A00000000000000000000093 /* ReplyTrace.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000093 /* ReplyTrace.swift */; };
+		A00000000000000000000094 /* ReplyTraceDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000094 /* ReplyTraceDecoder.swift */; };
+		A00000000000000000000095 /* ReplyTraceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000095 /* ReplyTraceService.swift */; };
+		A00000000000000000000096 /* ReplyTraceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000096 /* ReplyTraceView.swift */; };
+		A00000000000000000000097 /* ReplyTraceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000097 /* ReplyTraceTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -99,6 +105,7 @@
 		B00000000000000000000048 /* ProjectDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/CodexVista/Features/Dashboard/ProjectDetailView.swift; sourceTree = SOURCE_ROOT; };
 		B00000000000000000000049 /* ProjectDetailWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/CodexVista/Features/Dashboard/ProjectDetailWindowController.swift; sourceTree = SOURCE_ROOT; };
 		B00000000000000000000050 /* ProjectConversationHoverCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/CodexVista/Features/Dashboard/ProjectConversationHoverCard.swift; sourceTree = SOURCE_ROOT; };
+		B00000000000000000000092 /* TokenRateInfoButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/CodexVista/Features/Shared/TokenRateInfoButton.swift; sourceTree = SOURCE_ROOT; };
 		B00000000000000000000051 /* TodayTaskPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/CodexVista/Features/Dashboard/TodayTaskPanel.swift; sourceTree = SOURCE_ROOT; };
 		B00000000000000000000045 /* Version.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Version.xcconfig; sourceTree = "<group>"; };
 		B00000000000000000000011 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/CodexVista/Features/Settings/SettingsView.swift; sourceTree = SOURCE_ROOT; };
@@ -129,6 +136,11 @@
 		B00000000000000000000052 /* NotchSummaryController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/CodexVista/Features/MenuBar/NotchSummaryController.swift; sourceTree = SOURCE_ROOT; };
 		B00000000000000000000053 /* AppIdentityMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/CodexVista/Support/AppIdentityMigration.swift; sourceTree = SOURCE_ROOT; };
 		B00000000000000000000054 /* AppIdentityMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests/CodexVistaTests/AppIdentityMigrationTests.swift; sourceTree = SOURCE_ROOT; };
+		B00000000000000000000093 /* ReplyTrace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/CodexVista/Models/ReplyTrace.swift; sourceTree = SOURCE_ROOT; };
+		B00000000000000000000094 /* ReplyTraceDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/CodexVista/Data/Codex/ReplyTraceDecoder.swift; sourceTree = SOURCE_ROOT; };
+		B00000000000000000000095 /* ReplyTraceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/CodexVista/Data/Codex/ReplyTraceService.swift; sourceTree = SOURCE_ROOT; };
+		B00000000000000000000096 /* ReplyTraceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/CodexVista/Features/Dashboard/ReplyTraceView.swift; sourceTree = SOURCE_ROOT; };
+		B00000000000000000000097 /* ReplyTraceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests/CodexVistaTests/ReplyTraceTests.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -186,6 +198,7 @@
 				B00000000000000000000048 /* ProjectDetailView.swift */,
 				B00000000000000000000049 /* ProjectDetailWindowController.swift */,
 				B00000000000000000000050 /* ProjectConversationHoverCard.swift */,
+				B00000000000000000000092 /* TokenRateInfoButton.swift */,
 				B00000000000000000000051 /* TodayTaskPanel.swift */,
 				B00000000000000000000047 /* ModelUsagePanel.swift */,
 				B00000000000000000000046 /* ModelPricing.swift */,
@@ -195,6 +208,10 @@
 				B00000000000000000000011 /* SettingsView.swift */,
 				B00000000000000000000013 /* CodexEventModels.swift */,
 				B00000000000000000000014 /* CodexEventDecoder.swift */,
+				B00000000000000000000096 /* ReplyTraceView.swift */,
+				B00000000000000000000095 /* ReplyTraceService.swift */,
+				B00000000000000000000094 /* ReplyTraceDecoder.swift */,
+				B00000000000000000000093 /* ReplyTrace.swift */,
 				B00000000000000000000017 /* UsageAccumulator.swift */,
 				B00000000000000000000018 /* SessionStateReducer.swift */,
 				B00000000000000000000019 /* SQLiteDatabase.swift */,
@@ -219,6 +236,7 @@
 			children = (
 				B00000000000000000000004 /* TokenFormatterTests.swift */,
 				B00000000000000000000012 /* CodexEventDecoderTests.swift */,
+				B00000000000000000000097 /* ReplyTraceTests.swift */,
 				B00000000000000000000015 /* UsageAccumulatorTests.swift */,
 				B00000000000000000000016 /* SessionStateReducerTests.swift */,
 				B00000000000000000000021 /* UsageStoreTests.swift */,
@@ -359,6 +377,7 @@
 				A00000000000000000000048 /* ProjectDetailView.swift in Sources */,
 				A00000000000000000000049 /* ProjectDetailWindowController.swift in Sources */,
 				A00000000000000000000050 /* ProjectConversationHoverCard.swift in Sources */,
+				A00000000000000000000092 /* TokenRateInfoButton.swift in Sources */,
 				A00000000000000000000051 /* TodayTaskPanel.swift in Sources */,
 				A00000000000000000000047 /* ModelUsagePanel.swift in Sources */,
 				A00000000000000000000046 /* ModelPricing.swift in Sources */,
@@ -368,6 +387,10 @@
 				A00000000000000000000009 /* SettingsView.swift in Sources */,
 				A00000000000000000000013 /* CodexEventModels.swift in Sources */,
 				A00000000000000000000014 /* CodexEventDecoder.swift in Sources */,
+				A00000000000000000000096 /* ReplyTraceView.swift in Sources */,
+				A00000000000000000000095 /* ReplyTraceService.swift in Sources */,
+				A00000000000000000000094 /* ReplyTraceDecoder.swift in Sources */,
+				A00000000000000000000093 /* ReplyTrace.swift in Sources */,
 				A00000000000000000000017 /* UsageAccumulator.swift in Sources */,
 				A00000000000000000000018 /* SessionStateReducer.swift in Sources */,
 				A00000000000000000000019 /* SQLiteDatabase.swift in Sources */,
@@ -391,6 +414,7 @@
 			files = (
 				A00000000000000000000002 /* TokenFormatterTests.swift in Sources */,
 				A00000000000000000000012 /* CodexEventDecoderTests.swift in Sources */,
+				A00000000000000000000097 /* ReplyTraceTests.swift in Sources */,
 				A00000000000000000000015 /* UsageAccumulatorTests.swift in Sources */,
 				A00000000000000000000016 /* SessionStateReducerTests.swift in Sources */,
 				A00000000000000000000021 /* UsageStoreTests.swift in Sources */,

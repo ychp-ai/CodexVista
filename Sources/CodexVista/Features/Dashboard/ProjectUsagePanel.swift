@@ -70,26 +70,16 @@ struct ProjectUsagePanel: View {
     }
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 10) {
-            Image(systemName: "chart.bar.fill")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(CodexVistaTheme.dashboardAccent)
-                .frame(width: 24, height: 24)
-                .background(
-                    CodexVistaTheme.dashboardAccent.opacity(0.09),
-                    in: RoundedRectangle(cornerRadius: 6, style: .continuous)
-                )
-
-            Text("项目用量排行")
-                .font(.system(size: 13, weight: .semibold))
-
-            Spacer(minLength: 16)
-
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Label("项目用量排行", systemImage: "chart.bar.fill")
+                    .font(.system(size: 13, weight: .semibold))
+                Spacer(minLength: 12)
+                headerMetadata
+            }
             projectSearchField
-            headerMetadata
         }
-        .frame(height: 38)
-        .padding(.horizontal, 12)
+        .padding(12)
     }
 
     private var projectSearchField: some View {
@@ -102,7 +92,7 @@ struct ProjectUsagePanel: View {
                 .font(.system(size: 10, weight: .medium))
         }
         .padding(.horizontal, 9)
-        .frame(width: 150, height: 26)
+        .frame(width: 240, height: 28)
         .background(
             CodexVistaTheme.dashboardControlBackground.opacity(0.72),
             in: RoundedRectangle(cornerRadius: 7, style: .continuous)
@@ -274,8 +264,8 @@ struct ProjectUsagePanel: View {
         isSelected: Bool = false
     ) -> some View {
         let font: Font = isHeader
-            ? .system(size: 9, weight: .semibold)
-            : .system(size: 10.5, weight: .medium)
+            ? .system(size: 12, weight: .semibold)
+            : .system(size: 12, weight: .medium)
         let textColor = isHeader
             ? CodexVistaTheme.dashboardMutedText
             : CodexVistaTheme.dashboardPrimaryText.opacity(0.88)
@@ -302,22 +292,23 @@ struct ProjectUsagePanel: View {
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(project)
+                        .help(project)
                         .lineLimit(1)
                         .truncationMode(.middle)
                     if let projectSummary {
                         Text(projectSummary)
-                            .font(.system(size: 8.5, weight: .medium))
+                            .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(CodexVistaTheme.dashboardMutedText)
                             .lineLimit(1)
                             .truncationMode(.middle)
                     }
                 }
             }
-            .frame(width: 190, alignment: .leading)
+            .frame(minWidth: 170, maxWidth: .infinity, alignment: .leading)
 
             Text(lastActivity)
                 .monospacedDigit()
-                .frame(width: 86, alignment: .leading)
+                .frame(width: 76, alignment: .leading)
 
             Text(conversations)
                 .monospacedDigit()
@@ -331,7 +322,7 @@ struct ProjectUsagePanel: View {
                 .font(
                     isHeader
                         ? font
-                        : .system(size: 10.5, weight: .semibold, design: .rounded)
+                        : .system(size: 12, weight: .semibold, design: .rounded)
                 )
                 .foregroundStyle(
                     isHeader ? textColor : CodexVistaTheme.dashboardAccentSecondary
@@ -372,16 +363,16 @@ struct ProjectUsagePanel: View {
                     .minimumScaleFactor(0.9)
                     .frame(width: 60, alignment: .trailing)
             }
-            .frame(minWidth: 108, maxWidth: .infinity)
+            .frame(width: 92)
 
             Text(tokens)
                 .font(
                     isHeader
                         ? font
-                        : .system(size: 10.5, weight: .semibold, design: .rounded)
+                        : .system(size: 12, weight: .semibold, design: .rounded)
                 )
                 .monospacedDigit()
-                .frame(width: 68, alignment: .trailing)
+                .frame(width: 64, alignment: .trailing)
 
             HStack(spacing: 3) {
                 Text(action)
@@ -391,7 +382,7 @@ struct ProjectUsagePanel: View {
                 }
             }
             .foregroundStyle(isHeader ? textColor : CodexVistaTheme.dashboardAccent)
-            .frame(width: 68, alignment: .trailing)
+            .frame(width: 64, alignment: .trailing)
         }
         .font(font)
         .foregroundStyle(textColor)
@@ -485,7 +476,7 @@ struct ProjectUsagePanel: View {
                 .font(.system(size: 9.5, weight: .medium))
                 .foregroundStyle(CodexVistaTheme.dashboardMutedText)
             Text(value)
-                .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .foregroundStyle(CodexVistaTheme.dashboardAccent)
                 .monospacedDigit()
         }

@@ -3,6 +3,7 @@ import SwiftUI
 struct ActivityRankingPanel: View {
     let ranking: ActivityRanking
     @State private var hoveredSkillID: ActivityRankingEntry.ID?
+    @State private var pinnedSkillID: ActivityRankingEntry.ID?
 
     var body: some View {
         HStack(spacing: 12) {
@@ -85,63 +86,51 @@ struct ActivityRankingPanel: View {
         rank: Int,
         maximum: Int
     ) -> some View {
-        HStack(spacing: 8) {
-            Text("\(rank)")
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
-                .foregroundStyle(
-                    rank <= 3
-                        ? CodexVistaTheme.dashboardAccent
-                        : CodexVistaTheme.dashboardMutedText
-                )
-                .frame(width: 20, height: 20)
-                .background(
-                    CodexVistaTheme.dashboardControlBackground,
-                    in: RoundedRectangle(cornerRadius: 6, style: .continuous)
-                )
-
-            Text(entry.name)
-                .font(.system(size: 10.5, weight: .medium))
-                .foregroundStyle(CodexVistaTheme.dashboardPrimaryText)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .frame(width: 118, alignment: .leading)
-
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(CodexVistaTheme.dashboardControlBackground)
-                    Capsule()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    CodexVistaTheme.dashboardAccent,
-                                    CodexVistaTheme.dashboardAccentSecondary
-                                ],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(width: barWidth(
-                            available: geometry.size.width,
-                            count: entry.count,
-                            maximum: maximum
-                        ))
+        Button {
+            guard !entry.details.isEmpty else { return }
+            pinnedSkillID = pinnedSkillID == entry.id ? nil : entry.id
+        } label: {
+            HStack(spacing: 10) {
+                Text("\(rank)")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+                    .frame(width: 22)
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        Text(entry.name)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(CodexVistaTheme.dashboardPrimaryText)
+                            .lineLimit(2)
+                            .truncationMode(.middle)
+                        if !entry.details.isEmpty {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(CodexVistaTheme.dashboardAccent)
+                        }
+                        Spacer(minLength: 0)
+                        Text("\(entry.count) 次")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                            .fixedSize()
+                    }
+                    GeometryReader { geometry in
+                        Capsule().fill(CodexVistaTheme.dashboardControlBackground)
+                            .overlay(alignment: .leading) {
+                                Capsule().fill(CodexVistaTheme.dashboardAccent)
+                                    .frame(width: barWidth(available: geometry.size.width, count: entry.count, maximum: maximum))
+                            }
+                    }
+                    .frame(height: 4)
                 }
-                .frame(height: 5)
-                .frame(maxHeight: .infinity)
             }
-            .frame(minWidth: 54, maxWidth: .infinity, minHeight: 20)
-
-            Text("\(entry.count) 次")
-                .font(.system(size: 10.5, weight: .semibold, design: .rounded))
-                .foregroundStyle(CodexVistaTheme.dashboardPrimaryText.opacity(0.86))
-                .monospacedDigit()
-                .frame(width: 48, alignment: .trailing)
+            .padding(.vertical, 9)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
         .frame(maxWidth: .infinity, minHeight: 29)
         .contentShape(Rectangle())
         .onHover { isHovered in
-            guard !entry.details.isEmpty else { return }
+            guard !entry.details.isEmpty, pinnedSkillID == nil else { return }
             if isHovered {
                 hoveredSkillID = entry.id
             } else if hoveredSkillID == entry.id {
@@ -153,20 +142,30 @@ struct ActivityRankingPanel: View {
             attachmentAnchor: .rect(.bounds),
             arrowEdge: .bottom
         ) {
-            SkillBreakdownPopover(entry: entry)
-                .padding(4)
+            VStack(alignment: .trailing, spacing: 6) {
+                Button(pinnedSkillID == entry.id ? "关闭明细" : "固定明细") {
+                    if pinnedSkillID == entry.id {
+                        pinnedSkillID = nil
+                        hoveredSkillID = nil
+                    } else { pinnedSkillID = entry.id }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(CodexVistaTheme.dashboardAccent)
+                SkillBreakdownPopover(entry: entry)
+            }
+            .padding(8)
         }
         .help(
             entry.details.isEmpty
                 ? entry.name
-                : "悬浮查看 \(entry.name) 的细分 Skill 用量"
+                : "点击或悬浮查看 \(entry.name) 的细分 Skill 用量"
         )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("第 \(rank) 名，\(entry.name)，调用 \(entry.count) 次")
         .accessibilityHint(
             entry.details.isEmpty
                 ? ""
-                : "悬浮可查看 \(entry.details.count) 个细分 Skill"
+                : "按下可查看 \(entry.details.count) 个细分 Skill"
         )
     }
 
@@ -190,10 +189,11 @@ struct ActivityRankingPanel: View {
 
     private func hoverBinding(for entry: ActivityRankingEntry) -> Binding<Bool> {
         Binding(
-            get: { !entry.details.isEmpty && hoveredSkillID == entry.id },
+            get: { !entry.details.isEmpty && (hoveredSkillID == entry.id || pinnedSkillID == entry.id) },
             set: { isPresented in
-                if !isPresented, hoveredSkillID == entry.id {
-                    hoveredSkillID = nil
+                if !isPresented {
+                    if hoveredSkillID == entry.id { hoveredSkillID = nil }
+                    if pinnedSkillID == entry.id { pinnedSkillID = nil }
                 }
             }
         )

@@ -286,6 +286,12 @@ final class DashboardQueryService: @unchecked Sendable {
             subscriptionCycle: subscriptionCycle,
             quotas: quotaResult.quotas,
             quotaHistory: .make(events: quotaHistory, usageRows: trendRows, now: now),
+            tokenConsumptionRate: try latestReplyTokenRate(
+                from: historicalRows,
+                lifecycleFacts: turnLifecycleFacts,
+                replyAttribution: replyAttribution,
+                threadTitlesByThreadID: threadTitlesByThreadID
+            ),
             models: try models(from: sevenDayRows),
             dailyUsage: try dailyUsage(
                 from: trendRows,
@@ -710,7 +716,8 @@ final class DashboardQueryService: @unchecked Sendable {
                         aiWorktimeMilliseconds: worktime,
                         lastUsageAtMilliseconds: usage.lastUsageAtMilliseconds,
                         skillCalls: activity?.skills ?? [],
-                        toolCalls: activity?.tools ?? []
+                        toolCalls: activity?.tools ?? [],
+                        traceThreadID: threadID
                     )
                 }.sorted { left, right in
                     if left.displayAtMilliseconds != right.displayAtMilliseconds {
@@ -1063,6 +1070,46 @@ final class DashboardQueryService: @unchecked Sendable {
             )),
             reasoning: Int(clamping: aggregate.reasoning)
         )
+    }
+
+    private func latestReplyTokenRate(
+        from rows: [StoredUsageQueryRow],
+        lifecycleFacts: [ThreadTurnKey: TurnLifecycleFact],
+        replyAttribution: ThreadReplyAttributionResolver,
+        threadTitlesByThreadID: [String: String]
+    ) throws -> TokenConsumptionRate? {
+        var totals: [ThreadTurnKey: Int64] = [:]
+        for row in rows {
+            guard let turnID = row.turnID, !turnID.isEmpty else { continue }
+            let key = resolvedReplyKey(
+                threadID: row.threadID, turnID: turnID,
+                replyAttribution: replyAttribution,
+                threadTitlesByThreadID: threadTitlesByThreadID
+            )
+            guard lifecycleFacts[key]?.status == .completed,
+                  ProjectConversationUsage.isIncludedInTaskMetrics(
+                    displayTitle: threadTitlesByThreadID[key.threadID]
+                  ) else { continue }
+            totals[key] = try checkedAdd(
+                totals[key, default: 0], row.totalTokens, context: "tokenConsumptionRate.total"
+            )
+        }
+        let candidates = totals.compactMap { key, total -> (ThreadTurnKey, TokenConsumptionRate)? in
+            guard let fact = lifecycleFacts[key], let endedAt = fact.endedAtMilliseconds else { return nil }
+            let duration = aiWorktimeMilliseconds(
+                from: fact, fromMilliseconds: nil, toMilliseconds: endedAt
+            )
+            guard duration > 0 else { return nil }
+            return (key, TokenConsumptionRate(
+                totalTokens: total, durationMilliseconds: duration,
+                measuredAt: Date(timeIntervalSince1970: Double(endedAt) / 1_000)
+            ))
+        }
+        return candidates.sorted {
+            if $0.1.measuredAt != $1.1.measuredAt { return $0.1.measuredAt > $1.1.measuredAt }
+            if $0.0.threadID != $1.0.threadID { return $0.0.threadID < $1.0.threadID }
+            return $0.0.turnID < $1.0.turnID
+        }.first?.1
     }
 
     private func aiWorktimeMilliseconds(

@@ -696,6 +696,7 @@ struct CodexVistaInkQuota: View {
 struct CodexVistaSkinPreview: View {
     let skin: AppSkinPreference
     let isSelected: Bool
+    var compact = false
     let action: () -> Void
     @Environment(\.colorScheme) private var colorScheme
     @FocusState private var isFocused: Bool
@@ -714,15 +715,15 @@ struct CodexVistaSkinPreview: View {
         let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
         Button(action: action) {
             VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 14) {
+                HStack(spacing: compact ? 8 : 14) {
                     previewGauge(palette)
-                        .frame(width: 48, height: 48)
+                        .frame(width: compact ? 32 : 48, height: compact ? 36 : 48)
                     VStack(alignment: .leading, spacing: 3) {
                         Text("剩余额度")
                             .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(CodexVistaTheme.swatch(palette.muted))
                         Text("68%")
-                            .font(CodexVistaTheme.metricFont(size: 26, skin: skin))
+                            .font(CodexVistaTheme.metricFont(size: compact ? 20 : 26, skin: skin))
                             .monospacedDigit()
                     }
                     Spacer(minLength: 0)
@@ -733,8 +734,8 @@ struct CodexVistaSkinPreview: View {
                         }
                     }
                 }
-                .padding(12)
-                .frame(maxWidth: .infinity, minHeight: 76)
+                .padding(compact ? 8 : 12)
+                .frame(maxWidth: .infinity, minHeight: compact ? 54 : 76)
                 .background(CodexVistaTheme.swatch(palette.raised), in: RoundedRectangle(
                     cornerRadius: CodexVistaTheme.cornerRadius(10, skin: skin), style: .continuous
                 ))
@@ -743,20 +744,22 @@ struct CodexVistaSkinPreview: View {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     Text(skin.title)
                         .font(CodexVistaTheme.headingFont(size: 13, skin: skin))
-                    Text(schemeLabel)
-                        .font(.system(size: 10))
-                        .foregroundStyle(CodexVistaTheme.swatch(palette.muted))
+                    if !compact {
+                        Text(schemeLabel)
+                            .font(.system(size: 10))
+                            .foregroundStyle(CodexVistaTheme.swatch(palette.muted))
+                    }
                     Spacer(minLength: 0)
                     Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                         .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(CodexVistaTheme.swatch(isSelected ? palette.selectedText : palette.muted))
                 }
-                Text(skin.detail)
-                    .font(.system(size: 11))
+                Text(compact ? schemeLabel : skin.detail)
+                    .font(.system(size: compact ? 10 : 11))
                     .foregroundStyle(CodexVistaTheme.swatch(palette.muted))
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(12)
+            .padding(compact ? 10 : 12)
             .foregroundStyle(CodexVistaTheme.swatch(palette.primary))
             .background(CodexVistaTheme.swatch(palette.background), in: shape)
             .overlay {
