@@ -324,6 +324,7 @@ final class IncrementalJSONLReaderTests: XCTestCase {
         XCTAssertEqual(recordsByID["titled"]?.displayTitle, "修复 项目用量")
         XCTAssertEqual(recordsByID["guardian"]?.displayTitle, "命令权限检查")
         XCTAssertEqual(recordsByID["subagent"]?.displayTitle, "Codex 子任务 · Ada")
+        XCTAssertEqual(recordsByID["subagent"]?.agentNickname, "Ada")
         XCTAssertNil(recordsByID["plain-template"]?.displayTitle)
         XCTAssertEqual(
             CodexSourceDiscovery().threadDisplayTitles(rootURL: root),

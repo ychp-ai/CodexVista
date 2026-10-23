@@ -65,7 +65,12 @@
 		A00000000000000000000094 /* ReplyTraceDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000094 /* ReplyTraceDecoder.swift */; };
 		A00000000000000000000095 /* ReplyTraceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000095 /* ReplyTraceService.swift */; };
 		A00000000000000000000096 /* ReplyTraceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000096 /* ReplyTraceView.swift */; };
+		A00000000000000000000098 /* ReplyTraceDetails.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000098 /* ReplyTraceDetails.swift */; };
+		A0000000000000000000009B /* ReplyTraceContentDetails.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000009B /* ReplyTraceContentDetails.swift */; };
+		A0000000000000000000009A /* ReplyTraceContentReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000009A /* ReplyTraceContentReader.swift */; };
+		A00000000000000000000099 /* ReplyTraceNodeContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000099 /* ReplyTraceNodeContent.swift */; };
 		A00000000000000000000097 /* ReplyTraceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000097 /* ReplyTraceTests.swift */; };
+		A0000000000000000000009C /* ReplyTraceContentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000009C /* ReplyTraceContentTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -140,7 +145,12 @@
 		B00000000000000000000094 /* ReplyTraceDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/CodexVista/Data/Codex/ReplyTraceDecoder.swift; sourceTree = SOURCE_ROOT; };
 		B00000000000000000000095 /* ReplyTraceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/CodexVista/Data/Codex/ReplyTraceService.swift; sourceTree = SOURCE_ROOT; };
 		B00000000000000000000096 /* ReplyTraceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/CodexVista/Features/Dashboard/ReplyTraceView.swift; sourceTree = SOURCE_ROOT; };
+		B00000000000000000000098 /* ReplyTraceDetails.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/CodexVista/Features/Dashboard/ReplyTraceDetails.swift; sourceTree = SOURCE_ROOT; };
+		B0000000000000000000009B /* ReplyTraceContentDetails.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/CodexVista/Features/Dashboard/ReplyTraceContentDetails.swift; sourceTree = SOURCE_ROOT; };
+		B0000000000000000000009A /* ReplyTraceContentReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/CodexVista/Data/Codex/ReplyTraceContentReader.swift; sourceTree = SOURCE_ROOT; };
+		B00000000000000000000099 /* ReplyTraceNodeContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/CodexVista/Models/ReplyTraceNodeContent.swift; sourceTree = SOURCE_ROOT; };
 		B00000000000000000000097 /* ReplyTraceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests/CodexVistaTests/ReplyTraceTests.swift; sourceTree = SOURCE_ROOT; };
+		B0000000000000000000009C /* ReplyTraceContentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests/CodexVistaTests/ReplyTraceContentTests.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -209,6 +219,10 @@
 				B00000000000000000000013 /* CodexEventModels.swift */,
 				B00000000000000000000014 /* CodexEventDecoder.swift */,
 				B00000000000000000000096 /* ReplyTraceView.swift */,
+				B00000000000000000000098 /* ReplyTraceDetails.swift */,
+				B0000000000000000000009B /* ReplyTraceContentDetails.swift */,
+				B0000000000000000000009A /* ReplyTraceContentReader.swift */,
+				B00000000000000000000099 /* ReplyTraceNodeContent.swift */,
 				B00000000000000000000095 /* ReplyTraceService.swift */,
 				B00000000000000000000094 /* ReplyTraceDecoder.swift */,
 				B00000000000000000000093 /* ReplyTrace.swift */,
@@ -237,6 +251,7 @@
 				B00000000000000000000004 /* TokenFormatterTests.swift */,
 				B00000000000000000000012 /* CodexEventDecoderTests.swift */,
 				B00000000000000000000097 /* ReplyTraceTests.swift */,
+				B0000000000000000000009C /* ReplyTraceContentTests.swift */,
 				B00000000000000000000015 /* UsageAccumulatorTests.swift */,
 				B00000000000000000000016 /* SessionStateReducerTests.swift */,
 				B00000000000000000000021 /* UsageStoreTests.swift */,
@@ -388,6 +403,10 @@
 				A00000000000000000000013 /* CodexEventModels.swift in Sources */,
 				A00000000000000000000014 /* CodexEventDecoder.swift in Sources */,
 				A00000000000000000000096 /* ReplyTraceView.swift in Sources */,
+				A00000000000000000000098 /* ReplyTraceDetails.swift in Sources */,
+				A0000000000000000000009B /* ReplyTraceContentDetails.swift in Sources */,
+				A0000000000000000000009A /* ReplyTraceContentReader.swift in Sources */,
+				A00000000000000000000099 /* ReplyTraceNodeContent.swift in Sources */,
 				A00000000000000000000095 /* ReplyTraceService.swift in Sources */,
 				A00000000000000000000094 /* ReplyTraceDecoder.swift in Sources */,
 				A00000000000000000000093 /* ReplyTrace.swift in Sources */,
@@ -415,6 +434,7 @@
 				A00000000000000000000002 /* TokenFormatterTests.swift in Sources */,
 				A00000000000000000000012 /* CodexEventDecoderTests.swift in Sources */,
 				A00000000000000000000097 /* ReplyTraceTests.swift in Sources */,
+				A0000000000000000000009C /* ReplyTraceContentTests.swift in Sources */,
 				A00000000000000000000015 /* UsageAccumulatorTests.swift in Sources */,
 				A00000000000000000000016 /* SessionStateReducerTests.swift in Sources */,
 				A00000000000000000000021 /* UsageStoreTests.swift in Sources */,

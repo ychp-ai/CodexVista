@@ -1,6 +1,6 @@
 {
-  "source_commit": "da3123f3c297a1f7b9359feaa00229b22b092f2d",
-  "source_sha256": "7ee736271b20167530a82baf7299d46152957f3afa41d0a24671366f7405adb5",
+  "source_commit": "37ac9fef90094aed28a6b90d528fcc925a35dca2",
+  "source_sha256": "6e8d54c5def60436ce7fd0df9e63c8f2e0298b1f479eabe9d1eb912683703912",
   "fixture_date": "2026-09-04T08:00:00Z",
   "method": "Current SwiftUI/AppKit components, isolated documentation app, synthetic data; no live Codex reads",
   "scale": 2,
@@ -213,7 +213,7 @@
       "path": "codexvista-settings-plans.png",
       "title": "订阅与关于",
       "width": 1280,
-      "sha256": "6fb63b09eece2edf78b0592d7d575cd28aa342ca0bcd1c7f70af8ac5a4d200e6"
+      "sha256": "a250d385e516f73b7285bb6cbad1941a1c267eeba95f3642ac428d94791043f6"
     },
     {
       "height": 1484,
@@ -318,21 +318,63 @@
       "path": "layout/reply-trace-880.png",
       "title": "回复调用链",
       "width": 1760,
-      "sha256": "c04db33552839ceea10362f7904d4471c719a03cf47def66bfef40cec708239e"
+      "sha256": "2fbff75bb5e405fa3f36bf5d5358f22b6cb4508cbf94f467c1dd139f0cf62277"
     },
     {
       "height": 1204,
       "path": "layout/reply-trace-1040.png",
       "title": "回复调用链",
       "width": 2080,
-      "sha256": "02bbb9db6a48b5f21af497ce8d8f5335fd1bff2c5bf1c5a861b9ea6bb37aed0b"
+      "sha256": "8b9dd251f61a08d48d4704f9fea072448f16ec3211580837e12385cb7b838fa8"
     },
     {
       "height": 870,
       "path": "layout/reply-trace-slow-tools.png",
       "title": "调用链 · 慢工具排行",
       "width": 840,
-      "sha256": "9a4c2b9172d4072ebf64a6724bc487a5cb8934a7c8a7b5e1fd67763d7e27bd3e"
+      "sha256": "6c5f375f1dd8ab4f2ab9f2d3f0bc4578eda579c562464f1f620efc1e504b8a9b"
+    },
+    {
+      "height": 628,
+      "path": "layout/reply-trace-context.png",
+      "title": "调用链 · 上下文与压缩",
+      "width": 880,
+      "sha256": "9271a4274d3c791fc04fe3b6af2233d4bcc0b806529bca8fd982d0e19fdc4483"
+    },
+    {
+      "height": 1484,
+      "path": "layout/reply-trace-execution.png",
+      "title": "调用链 · 节点详情",
+      "width": 640,
+      "sha256": "5a839f360fd55334c4611fafe2ce499cd7873f88a073a8740e6ade52ddfa4ed6"
+    },
+    {
+      "height": 1484,
+      "path": "layout/reply-trace-agent.png",
+      "title": "调用链 · 节点详情",
+      "width": 640,
+      "sha256": "7c8f1b6fef2db874b9668648fb26961a6d0f6d91ad8b8a0732b286d9890744c1"
+    },
+    {
+      "height": 1484,
+      "path": "layout/reply-trace-mcp.png",
+      "title": "调用链 · 节点详情",
+      "width": 640,
+      "sha256": "57ae0121eaf72d8015a2248692c6acbf0cdeb329a4a117c1fb4526959c2a9178"
+    },
+    {
+      "height": 1484,
+      "path": "layout/reply-trace-model-content.png",
+      "title": "调用链 · 模型输入输出",
+      "width": 640,
+      "sha256": "906ab8c3fa6ea7daa66ab0159c86df5f4fff038d561a862c63d0ab8bff1e5900"
+    },
+    {
+      "height": 1484,
+      "path": "layout/reply-trace-reasoning-content.png",
+      "title": "调用链 · 推理输入输出",
+      "width": 640,
+      "sha256": "bd6e13714ab90115bbcd7de965bc50aad6520e2af4edce291bd7b620bc8260a1"
     },
     {
       "height": 224,
@@ -486,7 +528,7 @@
       "path": "codexvista-loading.png",
       "title": "首次载入",
       "width": 2120,
-      "sha256": "daaed95a7c9b2f5123cbb6be42a867b3c2a06209b5f54ae779de47628e9e710f"
+      "sha256": "ab122070477d357d223a3cf9fc0b2953b90dfbe46fa6028bb5a619ee6204b838"
     },
     {
       "height": 984,

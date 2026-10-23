@@ -131,6 +131,7 @@ struct ReplyTraceContent: View {
     @State private var collapsed = Set<String>()
     @State private var showsInspector = false
     @State private var showsSlowTools = false
+    @State private var showsContext = false
     @State private var timelineRevealRequest = 0
     @FocusState private var timelineIsFocused: Bool
 
@@ -202,19 +203,18 @@ struct ReplyTraceContent: View {
                 }
                 .popover(isPresented: $showsSlowTools, arrowEdge: .bottom) {
                     ReplyTraceSlowTools(nodes: trace.slowestTools, traceStart: trace.start) { node in
-                        search = ""
-                        filter = .all
-                        collapsed.removeAll()
-                        selection = node.id
-                        timelineRevealRequest += 1
-                        showsInspector = true
-                        showsSlowTools = false
-                        timelineIsFocused = true
+                        reveal(node)
                     }
+                }
+                Button { showsContext.toggle() } label: {
+                    Label("上下文", systemImage: "arrow.down.right.and.arrow.up.left")
+                }
+                .popover(isPresented: $showsContext, arrowEdge: .bottom) {
+                    ReplyTraceContextDetails(trace: trace, onSelect: reveal)
                 }
                 Spacer()
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
-                TextField("筛选节点名称", text: $search).textFieldStyle(.plain).frame(width: 160)
+                TextField("筛选节点名称", text: $search).textFieldStyle(.plain).frame(minWidth: 100, idealWidth: 140, maxWidth: 160)
                 Toggle(isOn: $showsInspector) { Label("节点详情", systemImage: "sidebar.right") }
                     .toggleStyle(.button)
                     .help("显示或隐藏所选节点的详情")
@@ -224,7 +224,7 @@ struct ReplyTraceContent: View {
                 HSplitView {
                     timeline.frame(minWidth: 560)
                     if showsInspector, let selected {
-                        ReplyTraceInspector(node: selected, traceStart: trace.start)
+                        ReplyTraceInspector(node: selected, trace: trace, onSelect: reveal)
                             .frame(minWidth: 230, idealWidth: 260, maxWidth: 300)
                     }
                 }
@@ -233,7 +233,7 @@ struct ReplyTraceContent: View {
             Divider()
             VStack(alignment: .leading, spacing: 4) {
                 Text("\(trace.nodes.count) 个节点 · \(trace.toolCount) 次工具调用 · \(trace.failureCount) 个失败节点")
-                Text("仅展示本地元数据 · ≈ 表示估算时间 · 圆点表示单点记录 · 层级由回复与代理关系重建")
+                Text("本地记录 · 正文按需读取 · ≈ 表示估算时间 · 圆点表示单点记录 · 层级由回复与代理关系重建")
                 if !trace.notices.isEmpty {
                     Text(trace.notices.joined(separator: " ")).foregroundStyle(CodexVistaTheme.dashboardMutedText)
                 }
@@ -329,6 +329,18 @@ struct ReplyTraceContent: View {
         .background(CodexVistaTheme.dashboardSurface.opacity(0.35))
     }
 
+    private func reveal(_ node: ReplyTraceNode) {
+        search = ""
+        filter = .all
+        collapsed.removeAll()
+        selection = node.id
+        timelineRevealRequest += 1
+        showsInspector = true
+        showsSlowTools = false
+        showsContext = false
+        timelineIsFocused = true
+    }
+
     private func metric(_ label: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             Text(label).font(.system(size: 10)).foregroundStyle(CodexVistaTheme.dashboardMutedText)
@@ -406,103 +418,5 @@ private struct ReplyTraceBar: View {
             .frame(height: proxy.size.height)
         }
         .help("\(node.status.title) · \(node.timing.title)")
-    }
-}
-
-private struct ReplyTraceInspector: View {
-    let node: ReplyTraceNode
-    let traceStart: Int64
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                Label(node.kind.title, systemImage: ReplyTraceFormat.icon(node.kind))
-                    .font(.system(size: 10, weight: .semibold)).foregroundStyle(ReplyTraceFormat.color(node))
-                Text(node.name).font(.system(size: 15, weight: .semibold)).textSelection(.enabled)
-                field("状态", node.status.title)
-                field("耗时", ReplyTraceFormat.nodeDuration(node))
-                field("时间来源", node.timing.title)
-                field("相对开始", "+\(ReplyTraceFormat.duration(max(0, node.startedAt - traceStart)))")
-                field("开始时间", Date(timeIntervalSince1970: Double(node.startedAt) / 1_000).formatted(date: .omitted, time: .standard))
-                if let model = node.model, !model.isEmpty { field("模型", model) }
-                field("推理强度", node.reasoningEffort?.rawValue ?? "未记录")
-                if node.kind == .reply {
-                    field("首 Token", node.timeToFirstTokenMilliseconds.map(ReplyTraceFormat.duration) ?? "未记录")
-                    Text("本次回复记录的首 Token 延迟，不代表每次模型请求的延迟。")
-                        .font(.system(size: 10)).foregroundStyle(.secondary)
-                }
-                if node.kind == .message { field("回复阶段", node.messagePhase?.title ?? "未记录") }
-                if let exitCode = node.exitCode { field("退出码", exitCode.formatted()) }
-                if let tokens = node.tokens {
-                    Divider()
-                    field("总 Token", tokens.totalTokens.formatted())
-                    field("未缓存输入", tokens.uncachedInput.formatted())
-                    field("缓存输入", tokens.cachedInputTokens.formatted())
-                    field("可见输出", tokens.visibleOutput.formatted())
-                    field("推理输出", tokens.reasoningOutputTokens.formatted())
-                    field("缓存命中率", ReplyTraceFormat.cacheHitRate(tokens.cacheHitRate))
-                    Text("用量记录没有请求起止时间，因此不计算该次模型请求耗时。")
-                        .font(.system(size: 10)).foregroundStyle(.secondary)
-                }
-                if node.timing == .estimated {
-                    Text("根据记录时间重建，可能包含记录延迟；不代表精确执行时间。")
-                        .font(.system(size: 10)).foregroundStyle(.secondary)
-                }
-                Divider()
-                field("线程", ThreadDisplayIdentifier.make(from: node.threadID))
-                if let turnID = node.turnID { field("回复 ID", turnID) }
-            }
-            .padding(18).frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    private func field(_ name: String, _ value: String) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Text(name).font(.system(size: 10)).foregroundStyle(CodexVistaTheme.dashboardMutedText)
-                .frame(width: 64, alignment: .leading)
-            Text(value).font(.system(size: 11)).textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .trailing)
-        }
-    }
-}
-
-private enum ReplyTraceFormat {
-    static func cacheHitRate(_ rate: Double?) -> String {
-        guard let rate else { return "未记录" }
-        return rate.formatted(.percent.precision(.fractionLength(1)))
-    }
-
-    static func duration(_ milliseconds: Int64) -> String {
-        if milliseconds < 1_000 { return "\(milliseconds)ms" }
-        return String(format: "%.1fs", Double(milliseconds) / 1_000)
-    }
-
-    static func nodeDuration(_ node: ReplyTraceNode) -> String {
-        guard let duration = node.duration else { return node.status == .running ? "进行中" : "—" }
-        return (node.timing == .estimated ? "≈ " : "") + self.duration(duration)
-    }
-
-    static func icon(_ kind: ReplyTraceNodeKind) -> String {
-        switch kind {
-        case .reply: "bubble.left"
-        case .subagent: "person.2"
-        case .tool: "wrench.and.screwdriver"
-        case .reasoning: "brain"
-        case .message: "text.bubble"
-        case .usage: "number.circle"
-        case .compaction: "arrow.down.right.and.arrow.up.left"
-        }
-    }
-
-    static func color(_ node: ReplyTraceNode) -> Color {
-        if node.status == .failed { return .red }
-        if node.status == .interrupted { return .orange }
-        return switch node.kind {
-        case .tool: CodexVistaTheme.dashboardAccentSecondary
-        case .usage: CodexVistaTheme.dashboardInput
-        case .reasoning: .purple
-        case .subagent: .orange
-        default: CodexVistaTheme.dashboardAccent
-        }
     }
 }

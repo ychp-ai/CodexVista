@@ -20,6 +20,11 @@ struct ReplyTraceEvent: Decodable, Sendable {
     var reasoningEffort: ReplyTraceReasoningEffort?
     var messagePhase: ReplyTraceMessagePhase?
     var timeToFirstTokenMilliseconds: Int64?
+    var toolMetadata: ReplyTraceToolMetadata?
+    var isCommandExecution = false
+    var agent: ReplyTraceAgentMetadata?
+    var modelContextWindow: Int?
+    var contextWindowNumber: Int?
 
     private enum Key: String, CodingKey {
         case timestamp, type, payload, model, item, id, name, namespace, status, server, tool, usage
@@ -31,17 +36,45 @@ struct ReplyTraceEvent: Decodable, Sendable {
         case exitCode = "exit_code"
         case effort, phase
         case timeToFirstTokenMS = "time_to_first_token_ms"
+        case source, subagent, kind, info
+        case threadSpawn = "thread_spawn", agentNickname = "agent_nickname", agentRole = "agent_role"
+        case processID = "process_id", processIDCamel = "processId"
+        case pluginID = "plugin_id", pluginIDCamel = "pluginId"
+        case readOnlyHint = "readOnlyHint", readOnlyHintSnake = "read_only_hint"
+        case agentThreadIDCamel = "agentThreadId", receiverThreadIDsCamel = "receiverThreadIds"
+        case agentsStates = "agents_states", agentsStatesCamel = "agentsStates"
+        case reasoningEffort = "reasoning_effort", reasoningEffortCamel = "reasoningEffort"
+        case modelContextWindow = "model_context_window"
+        case windowNumber = "window_number", windowID = "window_id"
     }
 
     init(from decoder: Decoder) throws {
         let envelope = try decoder.container(keyedBy: Key.self)
         timestamp = Self.milliseconds(try? envelope.decode(String.self, forKey: .timestamp))
         let envelopeType = try envelope.decode(String.self, forKey: .type)
-        guard ["turn_context", "event_msg", "response_item", "token_usage_record"].contains(envelopeType),
+        guard ["session_meta", "turn_context", "event_msg", "response_item", "token_usage_record", "compacted"].contains(envelopeType),
               let p = try? envelope.nestedContainer(keyedBy: Key.self, forKey: .payload) else { return }
         threadID = Self.identifier(try? p.decode(String.self, forKey: .threadID))
         turnID = Self.identifier(try? p.decode(String.self, forKey: .turnID))
         rootTurnID = Self.identifier(try? p.decode(String.self, forKey: .rootTurnID))
+        if envelopeType == "session_meta" {
+            type = "session"
+            threadID = Self.identifier(try? p.decode(String.self, forKey: .id))
+            let source = try? p.nestedContainer(keyedBy: Key.self, forKey: .source)
+            let subagent = try? source?.nestedContainer(keyedBy: Key.self, forKey: .subagent)
+            let spawn = try? subagent?.nestedContainer(keyedBy: Key.self, forKey: .threadSpawn)
+            agent = ReplyTraceAgentMetadata(
+                nickname: Self.label((try? p.decode(String.self, forKey: .agentNickname)) ?? (try? spawn?.decode(String.self, forKey: .agentNickname))),
+                role: Self.label((try? p.decode(String.self, forKey: .agentRole)) ?? (try? spawn?.decode(String.self, forKey: .agentRole)))
+            )
+            return
+        }
+        if envelopeType == "compacted" {
+            type = "compacted"
+            itemID = Self.identifier(try? p.decode(String.self, forKey: .windowID))
+            contextWindowNumber = Self.nonnegativeInteger(try? p.decode(Int.self, forKey: .windowNumber))
+            return
+        }
         if envelopeType == "turn_context" {
             type = "context"
             model = Self.identifier(try? p.decode(String.self, forKey: .model))
@@ -71,6 +104,12 @@ struct ReplyTraceEvent: Decodable, Sendable {
             return
         }
         switch eventType {
+        case "token_count":
+            type = "capacity"
+            let info = try? p.nestedContainer(keyedBy: Key.self, forKey: .info)
+            if let value = Self.nonnegativeInteger(try? info?.decode(Int.self, forKey: .modelContextWindow)), value > 0 {
+                modelContextWindow = value
+            }
         case "task_started": type = "start"
         case "task_complete", "turn_aborted":
             type = "end"
@@ -99,7 +138,14 @@ struct ReplyTraceEvent: Decodable, Sendable {
             }
             switch itemType {
             case "CommandExecution", "commandExecution":
-                kind = .tool; name = "命令执行"
+                kind = .tool
+                isCommandExecution = true
+                toolMetadata = ReplyTraceToolMetadata(
+                    source: ReplyTraceCommandSource(metadata: try? item.decode(String.self, forKey: .source)),
+                    processID: Self.identifier((try? item.decode(String.self, forKey: .processID)) ?? (try? item.decode(String.self, forKey: .processIDCamel))),
+                    pluginID: Self.identifier((try? item.decode(String.self, forKey: .pluginID)) ?? (try? item.decode(String.self, forKey: .pluginIDCamel)))
+                )
+                name = toolMetadata?.source?.commandName ?? "命令执行（工具名未记录）"
                 exitCode = try? item.decode(Int.self, forKey: .exitCode)
                 if let exitCode, exitCode != 0 { status = .failed }
             case "McpToolCall", "mcpToolCall":
@@ -108,6 +154,10 @@ struct ReplyTraceEvent: Decodable, Sendable {
                 let tool = Self.identifier(try? item.decode(String.self, forKey: .tool))
                 name = [server, tool].compactMap { $0 }.joined(separator: ".")
                 if name == "" { name = "MCP 工具" }
+                toolMetadata = ReplyTraceToolMetadata(
+                    pluginID: Self.identifier((try? item.decode(String.self, forKey: .pluginIDCamel)) ?? (try? item.decode(String.self, forKey: .pluginID))),
+                    readOnlyHint: (try? item.decode(Bool.self, forKey: .readOnlyHint)) ?? (try? item.decode(Bool.self, forKey: .readOnlyHintSnake))
+                )
             case "FileChange", "fileChange": kind = .tool; name = "文件变更"
             case "Reasoning", "reasoning": kind = .reasoning; name = "推理阶段"
             case "AgentMessage", "agentMessage":
@@ -117,25 +167,59 @@ struct ReplyTraceEvent: Decodable, Sendable {
             case "ContextCompaction", "contextCompaction": kind = .compaction; name = "上下文压缩"
             case "SubAgentActivity", "subAgentActivity":
                 kind = .subagent; name = "子代理活动"
-                childThreadIDs = [Self.identifier(try? item.decode(String.self, forKey: .agentThreadID))].compactMap { $0 }
+                childThreadIDs = [Self.identifier((try? item.decode(String.self, forKey: .agentThreadID)) ?? (try? item.decode(String.self, forKey: .agentThreadIDCamel)))].compactMap { $0 }
+                agent = ReplyTraceAgentMetadata(action: ReplyTraceAgentAction(metadata: try? item.decode(String.self, forKey: .kind)))
+                name = agent?.action?.title ?? name
             case "CollabAgentToolCall", "collabAgentToolCall":
                 kind = .tool
                 name = Self.identifier(try? item.decode(String.self, forKey: .tool)) ?? "代理协作"
-                childThreadIDs = (try? item.decode([String].self, forKey: .receiverThreadIDs))?
+                childThreadIDs = ((try? item.decode([String].self, forKey: .receiverThreadIDs)) ?? (try? item.decode([String].self, forKey: .receiverThreadIDsCamel)))?
                     .compactMap(Self.identifier) ?? []
+                agent = ReplyTraceAgentMetadata(action: ReplyTraceAgentAction(metadata: try? item.decode(String.self, forKey: .tool)), configurationIsRequested: true)
             case "Extension": kind = .tool; name = "扩展工具"
             case "ImageView", "imageView": kind = .tool; name = "查看图片"
             default: return
+            }
+            if agent != nil {
+                agent?.model = Self.identifier(try? item.decode(String.self, forKey: .model))
+                agent?.reasoningEffort = (try? item.decode(ReplyTraceReasoningEffort.self, forKey: .reasoningEffort))
+                    ?? (try? item.decode(ReplyTraceReasoningEffort.self, forKey: .reasoningEffortCamel))
+                let states = (try? item.decode([String: AgentState].self, forKey: .agentsStates))
+                    ?? (try? item.decode([String: AgentState].self, forKey: .agentsStatesCamel)) ?? [:]
+                // AgentState deliberately decodes only status, never its message.
+                agent?.targets = Set(childThreadIDs + states.keys.compactMap(Self.identifier)).sorted().map {
+                    ReplyTraceAgentTarget(threadID: $0, status: states[$0]?.status)
+                }
             }
             type = "item"
         default: break
         }
     }
 
-    private static func identifier(_ value: String?) -> String? {
-        guard let value, !value.isEmpty, value.utf8.count <= 180,
+    static func identifier(_ value: String?) -> String? {
+        guard let value, !value.isEmpty, value.utf8.count <= 180, !value.hasPrefix("/"), !value.contains(".."),
               value.unicodeScalars.allSatisfy({ CharacterSet.alphanumerics.contains($0) || "_-.:/".unicodeScalars.contains($0) }) else { return nil }
         return value
+    }
+
+    private static func label(_ value: String?) -> String? {
+        guard let value, !value.isEmpty, value.count <= 120,
+              !value.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }),
+              !value.contains("/") else { return nil }
+        return value
+    }
+
+    private static func nonnegativeInteger(_ value: Int?) -> Int? {
+        guard let value, value >= 0, value < Int.max else { return nil }
+        return value
+    }
+
+    private struct AgentState: Decodable {
+        let status: ReplyTraceAgentStatus?
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: Key.self)
+            status = ReplyTraceAgentStatus(metadata: try? container.decode(String.self, forKey: .status))
+        }
     }
 
     private static func milliseconds(_ value: String?) -> Int64? {

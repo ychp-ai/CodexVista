@@ -19,6 +19,8 @@ struct ThreadIndexRecord: Equatable, Sendable {
     let sourceRaw: String
     let model: String?
     let displayTitle: String?
+    let agentNickname: String?
+    let agentRole: String?
     let createdAtMilliseconds: Int64
     let updatedAtMilliseconds: Int64
     let archived: Bool
@@ -31,6 +33,8 @@ struct ThreadIndexRecord: Equatable, Sendable {
         sourceRaw: String,
         model: String?,
         displayTitle: String? = nil,
+        agentNickname: String? = nil,
+        agentRole: String? = nil,
         createdAtMilliseconds: Int64,
         updatedAtMilliseconds: Int64,
         archived: Bool,
@@ -42,6 +46,8 @@ struct ThreadIndexRecord: Equatable, Sendable {
         self.sourceRaw = sourceRaw
         self.model = model
         self.displayTitle = displayTitle
+        self.agentNickname = agentNickname
+        self.agentRole = agentRole
         self.createdAtMilliseconds = createdAtMilliseconds
         self.updatedAtMilliseconds = updatedAtMilliseconds
         self.archived = archived
@@ -535,6 +541,8 @@ struct CodexThreadIndexReader {
                 sourceRaw: record.sourceRaw,
                 model: record.model,
                 displayTitle: record.displayTitle,
+                agentNickname: record.agentNickname,
+                agentRole: record.agentRole,
                 createdAtMilliseconds: record.createdAtMilliseconds,
                 updatedAtMilliseconds: record.updatedAtMilliseconds,
                 archived: record.archived,
@@ -596,6 +604,7 @@ struct CodexThreadIndexReader {
                 )
                 let agentRole = try optionalText(statement, column: 7, name: "threads.agent_role")
                 let sourceRaw = try requiredText(statement, column: 2, name: "threads.source")
+                let spawn = (try? JSONDecoder().decode(SafeThreadSourceMetadata.self, from: Data(sourceRaw.utf8)))?.subagent?.threadSpawn
                 records.append(ThreadIndexRecord(
                     threadID: try requiredText(statement, column: 0, name: "threads.id"),
                     rolloutPath: try requiredText(statement, column: 1, name: "threads.rollout_path"),
@@ -608,6 +617,8 @@ struct CodexThreadIndexReader {
                         agentRole: agentRole,
                         sourceRaw: sourceRaw
                     ),
+                    agentNickname: normalizedAgentLabel(agentNickname) ?? normalizedAgentLabel(spawn?.agentNickname),
+                    agentRole: normalizedAgentLabel(agentRole) ?? normalizedAgentLabel(spawn?.agentRole),
                     createdAtMilliseconds: try milliseconds(created, alreadyMilliseconds: createdAtIsMilliseconds),
                     updatedAtMilliseconds: try milliseconds(updated, alreadyMilliseconds: updatedAtIsMilliseconds),
                     archived: try requiredBoolean(statement, column: 10, name: "threads.archived"),
@@ -671,6 +682,12 @@ struct CodexThreadIndexReader {
         let singleLine = rawValue.split(whereSeparator: \.isWhitespace).joined(separator: " ")
         guard !singleLine.isEmpty else { return nil }
         return String(singleLine.prefix(120))
+    }
+
+    private func normalizedAgentLabel(_ rawValue: String?) -> String? {
+        guard let rawValue, rawValue.count <= 120, !rawValue.contains("/"),
+              !rawValue.unicodeScalars.contains(where: { CharacterSet.controlCharacters.contains($0) }) else { return nil }
+        return normalizedDisplayTitle(rawValue)
     }
 
     private func isSystemTemplateTitle(_ title: String) -> Bool {

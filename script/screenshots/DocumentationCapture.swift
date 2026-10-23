@@ -148,6 +148,27 @@ enum DocumentationCapture {
                     ReplyTraceSlowTools(nodes: DocumentationFixture.trace.slowestTools,
                                         traceStart: DocumentationFixture.trace.start, onSelect: { _ in }))
 
+        try capture("layout/reply-trace-context.png", title: "调用链 · 上下文与压缩", width: 440,
+                    ReplyTraceContextDetails(trace: DocumentationFixture.trace, onSelect: { _ in }))
+        for (name, id) in [("execution", "example-node-2"), ("agent", "example-agent"), ("mcp", "example-mcp")] {
+            if let node = DocumentationFixture.trace.nodes.first(where: { $0.id == id }) {
+                try capture("layout/reply-trace-\(name).png", title: "调用链 · 节点详情", width: 320, height: 700,
+                            ReplyTraceInspector(node: node, trace: DocumentationFixture.trace, onSelect: { _ in }))
+            }
+        }
+
+        for (name, isModel) in [("model", true), ("reasoning", false)] {
+            let content = ReplyTraceNodeContent(
+                input: [.init(id: "input", title: "用户输入", text: "请检查示例页面的布局，并列出优先改进的地方。")],
+                output: isModel
+                    ? [.init(id: "answer", title: "模型回复", text: "建议先统一详情栏宽度，再调整图表与列表的留白。窄窗口可收起详情，保留主要内容。")]
+                    : [.init(id: "reasoning", title: "推理正文", text: "先核对窗口最小宽度，再检查主内容与详情栏是否有足够的阅读空间。"),
+                       .init(id: "summary", title: "推理摘要", text: "优先检查窄窗口的布局和详情入口。")],
+                found: true, outputIsEstimated: isModel)
+            try capture("layout/reply-trace-\(name)-content.png", title: "调用链 · \(isModel ? "模型" : "推理")输入输出", width: 320, height: 700,
+                        ScrollView { ReplyTraceContentDetails(content: content).padding(16) })
+        }
+
         let presentation = StatusItemPresentation(snapshot: snapshot, configuration: .standard, now: DocumentationFixture.now)
         try capture("codexvista-status-bar.png", title: "状态栏摘要", width: 350,
                     summary(presentation, skin: .standard, dark: false).padding(24))

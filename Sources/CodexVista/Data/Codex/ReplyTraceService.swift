@@ -27,6 +27,19 @@ actor ReplyTraceService {
         return try load(reply: reply, threadID: threadID, inventory: inventory)
     }
 
+    func loadContent(node: ReplyTraceNode) throws -> ReplyTraceNodeContent {
+        try Task.checkCancellation()
+        let inventory: CodexSourceInventory
+        do { inventory = try CodexSourceDiscovery().discover(rootURL: rootURL) }
+        catch { throw ReplyTraceError.unreadableSource }
+        guard let url = inventory.rollouts.first(where: { $0.thread?.threadID == node.threadID })?.url
+            ?? inventory.rollouts.first(where: { $0.url.lastPathComponent.hasSuffix("-\(node.threadID).jsonl") })?.url
+        else { throw ReplyTraceError.missingSource }
+        do { return try ReplyTraceContentReader().read(url, node: node) }
+        catch is CancellationError { throw CancellationError() }
+        catch { throw ReplyTraceError.unreadableSource }
+    }
+
     private func load(reply: ProjectReplyUsage, threadID: String, inventory: CodexSourceInventory) throws -> ReplyTrace {
         func source(_ id: String) -> URL? {
             inventory.rollouts.first { $0.thread?.threadID == id }?.url
@@ -56,7 +69,8 @@ actor ReplyTraceService {
             startedAt: start, endedAt: end, timing: main.start != nil && main.end != nil ? .recorded : .estimated,
             model: reply.modelCalls.map(\.name).joined(separator: " · "),
             reasoningEffort: main.reasoningEffort,
-            timeToFirstTokenMilliseconds: main.timeToFirstTokenMilliseconds
+            timeToFirstTokenMilliseconds: main.timeToFirstTokenMilliseconds,
+            modelContextWindow: main.modelContextWindow, contextWindowNumber: main.contextWindowNumber
         )
         var nodes = [root] + initialNodes
         var notices = main.notices
@@ -82,12 +96,21 @@ actor ReplyTraceService {
             let groupID = "agent:\(childID)"
             let childNodes = child.resolvedNodes(parentID: groupID)
             guard !childNodes.isEmpty else { continue }
+            let index = inventory.threadIndex.first { $0.threadID == childID }
+            let nickname = child.agentIdentity?.nickname ?? index?.agentNickname
+            let role = child.agentIdentity?.role ?? index?.agentRole
+            let models = Set(childNodes.compactMap(\.model)).sorted()
+            let efforts = Set(childNodes.compactMap(\.reasoningEffort))
             nodes.append(ReplyTraceNode(
                 id: groupID, parentID: parentID, threadID: childID, turnID: nil,
-                kind: .subagent, name: "子代理 · \(ThreadDisplayIdentifier.make(from: childID))",
+                kind: .subagent, name: "子代理 · \(nickname ?? role ?? ThreadDisplayIdentifier.make(from: childID))",
                 status: child.status ?? .unknown,
                 startedAt: childNodes.map(\.startedAt).min() ?? start,
-                endedAt: childNodes.compactMap(\.endedAt).max(), timing: .estimated
+                endedAt: childNodes.compactMap(\.endedAt).max(), timing: .estimated,
+                model: models.isEmpty ? nil : models.joined(separator: " · "),
+                reasoningEffort: efforts.count == 1 ? efforts.first : nil,
+                agent: ReplyTraceAgentMetadata(nickname: nickname, role: role),
+                modelContextWindow: child.modelContextWindow, contextWindowNumber: child.contextWindowNumber
             ))
             nodes.append(contentsOf: childNodes)
             notices.append(contentsOf: child.notices)
@@ -113,12 +136,18 @@ struct ReplyTraceSlice {
     private(set) var timeToFirstTokenMilliseconds: Int64?
     private(set) var childParents: [String: String] = [:]
     private(set) var notices: [String] = []
+    private(set) var agentIdentity: ReplyTraceAgentMetadata?
+    private(set) var modelContextWindow: Int?
+    private(set) var contextWindowNumber: Int?
     private var currentTurn: String?
     private var modelsByTurn: [String: String] = [:]
     private var effortsByTurn: [String: ReplyTraceReasoningEffort] = [:]
     private var items: [String: ReplyTraceNode] = [:]
+    private var commandItems: Set<String> = []
     private var calls: [String: ReplyTraceNode] = [:]
     private var outputTimes: [String: Int64] = [:]
+    private var capacityByTurn: [String: Int] = [:]
+    private var compactionMarkers: [String: ReplyTraceNode] = [:]
 
     var reasoningEffort: ReplyTraceReasoningEffort? { turnID.flatMap { effortsByTurn[$0] } }
 
@@ -142,6 +171,10 @@ struct ReplyTraceSlice {
 
     mutating func consume(_ event: ReplyTraceEvent) {
         guard event.threadID == nil || event.threadID == threadID else { return }
+        if event.type == "session" {
+            agentIdentity = event.agent
+            return
+        }
         if event.type == "context" || event.type == "start" {
             currentTurn = event.turnID ?? currentTurn
             if let model = event.model, let currentTurn { modelsByTurn[currentTurn] = model }
@@ -154,11 +187,28 @@ struct ReplyTraceSlice {
         guard event.type != "ignored", let timestamp = event.timestamp ?? event.start else { return }
         let eventStart = event.start ?? timestamp
         if let interval, !interval.contains(eventStart) { return }
-        guard items.count + calls.count < 5_000 else {
+        guard items.count + calls.count + compactionMarkers.count < 5_000 else {
             if !notices.contains("节点较多，仅展示前 5,000 条元数据。") { notices.append("节点较多，仅展示前 5,000 条元数据。") }
             return
         }
         switch event.type {
+        case "capacity":
+            if let capacity = event.modelContextWindow, let resolvedTurn {
+                capacityByTurn[resolvedTurn] = capacity
+                modelContextWindow = capacity
+            }
+        case "compacted":
+            if let number = event.contextWindowNumber, resolvedTurn != nil {
+                contextWindowNumber = number
+            }
+            // A marker and ContextCompaction can describe the same work. Prefer item spans per turn.
+            guard let windowID = event.itemID, let resolvedTurn else { return }
+            let key = "compacted:\(threadID):\(resolvedTurn):\(windowID)"
+            compactionMarkers[key] = ReplyTraceNode(
+                id: key, threadID: threadID, turnID: resolvedTurn, kind: .compaction,
+                name: "上下文压缩", status: .completed, startedAt: timestamp, timing: .point,
+                model: model, reasoningEffort: effort, contextWindowNumber: event.contextWindowNumber
+            )
         case "start":
             start = min(start ?? timestamp, timestamp)
             end = nil
@@ -172,6 +222,7 @@ struct ReplyTraceSlice {
         case "item":
             guard let itemID = event.itemID, let kind = event.kind, let name = event.name else { return }
             let key = "item:\(threadID):\(resolvedTurn ?? "unknown"):\(itemID)"
+            if event.isCommandExecution { commandItems.insert(key) }
             // Repeated completion records and a preceding item_started collapse into one span.
             if items[key]?.endedAt != nil, event.end == nil { return }
             let validEnd = event.end.flatMap { $0 >= eventStart ? $0 : nil }
@@ -180,7 +231,8 @@ struct ReplyTraceSlice {
                 kind: kind, name: name, status: event.status,
                 startedAt: eventStart, endedAt: validEnd,
                 timing: event.start != nil && validEnd != nil ? .recorded : .point,
-                model: model, exitCode: event.exitCode, reasoningEffort: effort, messagePhase: event.messagePhase
+                model: model, exitCode: event.exitCode, reasoningEffort: effort, messagePhase: event.messagePhase,
+                tool: event.toolMetadata, agent: event.agent, sourceItemID: itemID
             )
             for childID in event.childThreadIDs where childID != threadID && childParents[childID] == nil {
                 childParents[childID] = key
@@ -197,7 +249,7 @@ struct ReplyTraceSlice {
                     id: key, parentID: nil, threadID: threadID, turnID: resolvedTurn,
                     kind: .usage, name: "模型用量", status: .completed,
                     startedAt: timestamp, endedAt: nil, timing: .point,
-                    model: model, tokens: tokens, reasoningEffort: effort
+                    model: model, tokens: tokens, reasoningEffort: effort, responseID: responseID
                 )
             }
         case "call":
@@ -220,6 +272,8 @@ struct ReplyTraceSlice {
     func resolvedNodes(parentID: String) -> [ReplyTraceNode] {
         let turnsWithRecordedTools = Set(items.values.filter { $0.kind == .tool }.compactMap(\.turnID))
         var result = Array(items.values)
+        let turnsWithCompactionItems = Set(items.values.filter { $0.kind == .compaction }.compactMap(\.turnID))
+        result.append(contentsOf: compactionMarkers.values.filter { !turnsWithCompactionItems.contains($0.turnID ?? "") })
         for (id, var call) in calls {
             // New item metadata describes actual tools inside wrappers such as functions.exec.
             // Mixing the wrapper records in would double count the same work.
@@ -230,7 +284,17 @@ struct ReplyTraceSlice {
         }
         return result.map { node in
             var node = node
+            // Preserve an explicit tool name only for the exact same call ID and turn.
+            // Wrapper calls such as functions.exec do not identify the command inside them.
+            if commandItems.contains(node.id),
+               let call = calls["call:" + node.id.dropFirst("item:".count)],
+               let toolName = call.name.split(separator: ".").last,
+               ["exec_command", "write_stdin", "shell", "shell_command", "local_shell"].contains(String(toolName)) {
+                node.name = call.name
+            }
             node.parentID = parentID
+            node.modelContextWindow = node.turnID.flatMap { capacityByTurn[$0] }
+            // Window numbers belong to marker records; do not infer a marker-to-span pairing.
             return node
         }.sorted {
             if $0.startedAt != $1.startedAt { return $0.startedAt < $1.startedAt }

@@ -133,7 +133,19 @@ enum DocumentationFixture {
                 replies: (0..<5).map { reply(index * 5 + $0, tokens: 8_000) })
         }, dailyUsage: [], configuredDirectories: [.init(id: "example-dense-root", name: "components")])
 
-    static let trace = ReplyTrace(nodes: (0..<10).map(traceNode), notices: [])
+    static let trace = ReplyTrace(nodes: (0..<10).map(traceNode) + [
+        ReplyTraceNode(id: "example-agent", parentID: "example-node-0", threadID: "example-child", turnID: nil,
+            kind: .subagent, name: "子代理 · Ada", status: .completed, startedAt: milliseconds + 4_000,
+            endedAt: milliseconds + 30_000, timing: .estimated, model: "example-child-model", reasoningEffort: .low,
+            agent: .init(nickname: "Ada", role: "reviewer")),
+        ReplyTraceNode(id: "example-compaction", parentID: "example-agent", threadID: "example-child", turnID: "example-child-turn",
+            kind: .compaction, name: "上下文压缩", status: .completed, startedAt: milliseconds + 20_000,
+            endedAt: milliseconds + 22_000, timing: .recorded, modelContextWindow: 200_000),
+        ReplyTraceNode(id: "example-mcp", parentID: "example-node-0", threadID: "example-thread", turnID: "example-turn",
+            kind: .tool, name: "example_plugin.lookup", status: .completed, startedAt: milliseconds + 23_000,
+            endedAt: milliseconds + 24_000, timing: .recorded,
+            tool: .init(pluginID: "example-plugin", readOnlyHint: true))
+    ], notices: [])
 
     private static func traceNode(_ index: Int) -> ReplyTraceNode {
         let start = milliseconds + Int64(index) * 5_000
@@ -144,7 +156,7 @@ enum DocumentationFixture {
         default: nil
         }
         let kind: ReplyTraceNodeKind = index == 0 ? .reply : index == 7 ? .usage : phase != nil ? .message : .tool
-        let name = index == 0 ? "示例回复" : index == 7 ? "模型用量" : phase?.title ?? "exec_command · 示例调用 \(index)"
+        let name = index == 0 ? "示例回复" : index == 7 ? "模型用量" : phase?.title ?? (index == 3 ? "write_stdin" : "exec_command")
         return ReplyTraceNode(id: "example-node-\(index)", parentID: index == 0 ? nil : "example-node-0",
             threadID: "example-thread", turnID: "example-turn", kind: kind,
             name: name, status: index == 4 ? .failed : .completed,
@@ -152,7 +164,10 @@ enum DocumentationFixture {
             timing: index == 7 ? .point : index == 3 ? .estimated : .recorded, model: "example-model",
             tokens: index == 7 ? .init(inputTokens: 30_000, cachedInputTokens: 15_000, outputTokens: 10_000,
                                      reasoningOutputTokens: 2_000, totalTokens: 40_000) : nil,
-            reasoningEffort: .high, messagePhase: phase, timeToFirstTokenMilliseconds: index == 0 ? 920 : nil)
+            reasoningEffort: .high, messagePhase: phase, timeToFirstTokenMilliseconds: index == 0 ? 920 : nil,
+            tool: [2, 3].contains(index) ? .init(source: index == 2 ? .unifiedExecStartup : .unifiedExecInteraction,
+                processID: "example-session", pluginID: "example-plugin") : nil,
+            modelContextWindow: 200_000, contextWindowNumber: index == 0 ? 2 : nil)
     }
 
     static let snapshot: DashboardSnapshot = {

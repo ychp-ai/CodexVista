@@ -13,7 +13,7 @@ final class ReplyTraceTests: XCTestCase {
                      "command": ["private": true], "aggregated_output": ["private": true], "cwd": ["private": true]]
         ])
         XCTAssertEqual(event.kind, .tool)
-        XCTAssertEqual(event.name, "命令执行")
+        XCTAssertEqual(event.name, "命令执行（工具名未记录）")
         XCTAssertEqual(event.status, .failed)
         XCTAssertEqual(event.end! - event.start!, 200)
         XCTAssertFalse(String(describing: event).contains("private"))
@@ -93,10 +93,11 @@ final class ReplyTraceTests: XCTestCase {
             try line("turn_context", ["turn_id": "turn-a", "effort": "high"]),
             try line("event_msg", ["type": "task_started", "turn_id": "turn-a"]),
             try line("event_msg", ["type": "item_completed", "turn_id": "turn-a", "started_at_ms": base + 100, "completed_at_ms": base + 200,
-                                    "item": ["id": "spawn", "type": "CollabAgentToolCall", "tool": "spawn_agent", "receiver_thread_ids": ["child"]]], offset: 200),
+                                    "item": ["id": "spawn", "type": "CollabAgentToolCall", "tool": "spawn_agent", "receiver_thread_ids": ["child"], "model": "requested-model", "reasoning_effort": "high"]], offset: 200),
             try line("event_msg", ["type": "task_complete", "turn_id": "turn-a", "time_to_first_token_ms": 250], offset: 1_000)
         ].joined()
         let child = [
+            try line("session_meta", ["id": "child", "source": ["subagent": ["thread_spawn": ["agent_nickname": "Ada", "agent_role": "reviewer"]]], "instructions": ["private": true]]),
             try line("turn_context", ["turn_id": "child-turn", "model": "model-child", "effort": "low"]),
             try line("event_msg", ["type": "item_completed", "started_at_ms": base - 1_000, "completed_at_ms": base - 100,
                                     "item": ["id": "old", "type": "CommandExecution"]], offset: -100),
@@ -115,6 +116,12 @@ final class ReplyTraceTests: XCTestCase {
         XCTAssertEqual(trace.root?.timeToFirstTokenMilliseconds, 250)
         XCTAssertEqual(trace.root?.reasoningEffort, .high)
         XCTAssertEqual(trace.nodes.first { $0.id.hasSuffix(":new") }?.reasoningEffort, .low)
+        let group = try XCTUnwrap(trace.nodes.first { $0.id == "agent:child" })
+        XCTAssertEqual(group.name, "子代理 · Ada")
+        XCTAssertEqual(group.agent?.role, "reviewer")
+        XCTAssertEqual(group.model, "model-child")
+        XCTAssertEqual(group.reasoningEffort, .low)
+        XCTAssertFalse(String(describing: trace).contains("private"))
         XCTAssertEqual(trace.nodes.first { $0.kind == .subagent }?.parentID, trace.nodes.first { $0.name == "spawn_agent" }?.id)
         XCTAssertTrue(trace.nodes.allSatisfy { node in
             node.parentID == nil || trace.nodes.contains(where: { $0.id == node.parentID })
@@ -236,6 +243,158 @@ final class ReplyTraceTests: XCTestCase {
         XCTAssertEqual(trace.slowestTools[1].timing, .estimated)
         XCTAssertEqual(ReplyTrace(nodes: [traceNode("b"), traceNode("a")], notices: []).slowestTools.map(\.id), ["a", "b"])
         XCTAssertTrue(ReplyTrace(nodes: [], notices: []).slowestTools.isEmpty)
+    }
+
+    func testExecutionMetadataAliasesUnknownValuesAndProcessIsolation() throws {
+        var slice = ReplyTraceSlice(threadID: "main", turnID: "turn-a")
+        for (index, source) in ["unified_exec_startup", "unifiedExecInteraction", "future-source"].enumerated() {
+            slice.consume(try decode("event_msg", ["type": "item_completed", "turn_id": "turn-a",
+                "item": ["type": "CommandExecution", "id": "cmd-\(index)", "source": source,
+                         "process_id": "session-7", "plugin_id": "example-plugin", "command": ["private": true]]], offset: Int64(index)))
+        }
+        let nodes = slice.resolvedNodes(parentID: "root")
+        XCTAssertEqual(nodes.map { $0.tool?.source }, [.unifiedExecStartup, .unifiedExecInteraction, nil])
+        XCTAssertEqual(nodes.map(\.name), ["exec_command", "write_stdin", "命令执行（工具名未记录）"])
+        XCTAssertEqual(nodes.first?.tool?.pluginID, "example-plugin")
+        let otherThread = ReplyTraceNode(id: "other", threadID: "other", turnID: "turn-a", kind: .tool,
+            name: "命令执行", status: .completed, startedAt: base, timing: .point,
+            tool: .init(processID: "session-7"))
+        let trace = ReplyTrace(nodes: nodes + [otherThread], notices: [])
+        XCTAssertEqual(trace.relatedExecutions(to: nodes[0]).map(\.id), [nodes[1].id, nodes[2].id])
+        XCTAssertFalse(String(describing: nodes).contains("private"))
+        let invalid = try decode("event_msg", ["type": "item_completed", "item": ["type": "commandExecution",
+            "id": "bad", "source": ["private": true], "processId": "/private/path", "pluginId": "../private"]])
+        XCTAssertNil(invalid.toolMetadata?.source)
+        XCTAssertNil(invalid.toolMetadata?.processID)
+        XCTAssertNil(invalid.toolMetadata?.pluginID)
+    }
+
+    func testCommandNamesPreserveExactCallsWithoutUsingWrapperOrOtherTurnNames() throws {
+        var slice = ReplyTraceSlice(threadID: "main", turnID: nil)
+        slice.consume(try decode("turn_context", ["turn_id": "turn-a"]))
+        for (id, name) in [("shell-call", "shell_command"), ("startup", "exec_command"), ("wrapper", "exec")] {
+            slice.consume(try decode("response_item", ["type": "function_call", "call_id": id,
+                "namespace": "functions", "name": name, "arguments": ["private": true]]))
+        }
+        for (id, source) in [("shell-call", "agent"), ("startup", "unified_exec_startup"),
+                             ("interaction", "unified_exec_interaction"), ("wrapper", "unified_exec_startup"),
+                             ("user", "user_shell"), ("unknown", "future-source")] {
+            slice.consume(try decode("event_msg", ["type": "item_completed", "turn_id": "turn-a",
+                "started_at_ms": base, "completed_at_ms": base + 100,
+                "item": ["id": id, "type": "CommandExecution", "source": source,
+                         "command": ["private": true], "aggregated_output": ["private": true]]]))
+        }
+        // Calls can arrive after item metadata. Matching never depends on adjacency or time.
+        slice.consume(try decode("response_item", ["type": "function_call", "call_id": "interaction",
+            "namespace": "functions", "name": "write_stdin"]))
+        slice.consume(try decode("turn_context", ["turn_id": "turn-b"]))
+        slice.consume(try decode("response_item", ["type": "function_call", "call_id": "unknown", "name": "shell"]))
+        slice.consume(try decode("event_msg", ["type": "item_completed", "turn_id": "turn-b",
+            "item": ["id": "other", "type": "CommandExecution", "source": "agent"]]))
+        let nodes = slice.resolvedNodes(parentID: "root")
+        let names = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0.name) })
+        XCTAssertEqual(names["item:main:turn-a:shell-call"], "functions.shell_command")
+        XCTAssertEqual(names["item:main:turn-a:startup"], "functions.exec_command")
+        XCTAssertEqual(names["item:main:turn-a:interaction"], "functions.write_stdin")
+        XCTAssertEqual(names["item:main:turn-a:wrapper"], "exec_command")
+        XCTAssertEqual(names["item:main:turn-a:user"], "用户 Shell")
+        XCTAssertEqual(names["item:main:turn-a:unknown"], "命令执行（工具名未记录）")
+        XCTAssertEqual(names["item:main:turn-b:other"], "命令执行（工具名未记录）")
+        XCTAssertEqual(nodes.count, 7)
+        XCTAssertTrue(nodes.filter { $0.turnID == "turn-a" }.allSatisfy { $0.duration == 100 && $0.timing == .recorded })
+        XCTAssertFalse(String(describing: nodes).contains("private"))
+    }
+
+    func testReadOnlyHintDistinguishesFalseMissingAndMalformed() throws {
+        for (value, expected) in [(true as Any, true as Bool?), (false as Any, false as Bool?),
+                                   ("true" as Any, nil), (NSNull() as Any, nil)] {
+            let event = try decode("event_msg", ["type": "item_completed", "item": ["type": "McpToolCall", "id": "mcp",
+                "readOnlyHint": value, "pluginId": "example-plugin", "result": ["private": true]]])
+            XCTAssertEqual(event.toolMetadata?.readOnlyHint, expected)
+            XCTAssertEqual(event.toolMetadata?.pluginID, "example-plugin")
+            XCTAssertFalse(String(describing: event).contains("private"))
+        }
+        XCTAssertNil(try decode("event_msg", ["type": "item_completed", "item": ["type": "McpToolCall", "id": "mcp"]]).toolMetadata?.readOnlyHint)
+    }
+
+    func testAgentActionsKeepRequestedConfigurationSeparateAndIgnoreMessages() throws {
+        var slice = ReplyTraceSlice(threadID: "main", turnID: "turn-a")
+        slice.consume(try decode("turn_context", ["turn_id": "turn-a", "model": "caller-model", "effort": "high"]))
+        slice.consume(try decode("event_msg", ["type": "item_completed", "item": [
+            "type": "collabAgentToolCall", "id": "spawn", "tool": "spawnAgent", "receiverThreadIds": ["child"],
+            "model": "requested-model", "reasoningEffort": "low", "prompt": ["private": true],
+            "agentsStates": ["child": ["status": "pendingInit", "message": ["private": true]],
+                             "another": ["status": "future-private-value", "message": "private"]]
+        ]]))
+        let node = try XCTUnwrap(slice.resolvedNodes(parentID: "root").first)
+        XCTAssertEqual(node.model, "caller-model")
+        XCTAssertEqual(node.reasoningEffort, .high)
+        XCTAssertEqual(node.agent?.model, "requested-model")
+        XCTAssertEqual(node.agent?.reasoningEffort, .low)
+        XCTAssertEqual(node.agent?.action, .spawnAgent)
+        XCTAssertEqual(node.agent?.configurationIsRequested, true)
+        XCTAssertEqual(node.agent?.targets, [.init(threadID: "another", status: nil), .init(threadID: "child", status: .pendingInit)])
+        XCTAssertFalse(String(describing: node).contains("private"))
+        let activity = try decode("event_msg", ["type": "item_completed", "item": [
+            "type": "SubAgentActivity", "id": "activity", "agent_thread_id": "child", "kind": "interacted",
+            "model": "resolved-model", "reasoning_effort": "medium"]])
+        XCTAssertEqual(activity.agent?.action, .interacted)
+        XCTAssertEqual(activity.agent?.configurationIsRequested, false)
+        XCTAssertEqual(activity.agent?.model, "resolved-model")
+        XCTAssertEqual(activity.childThreadIDs, ["child"])
+    }
+
+    func testContextCapacityAndWindowNumberStayWithSelectedReply() throws {
+        var slice = ReplyTraceSlice(threadID: "main", turnID: "turn-a")
+        slice.consume(try decode("turn_context", ["turn_id": "turn-a"]))
+        slice.consume(try decode("event_msg", ["type": "token_count", "info": [
+            "model_context_window": 200_000, "total_token_usage": ["private": true]]]))
+        slice.consume(try decode("event_msg", ["type": "item_completed", "item": ["type": "Reasoning", "id": "reasoning"]]))
+        slice.consume(try decode("compacted", ["window_id": "w-2", "window_number": 2, "replacement_history": ["private": true]]))
+        slice.consume(try decode("turn_context", ["turn_id": "turn-b"]))
+        slice.consume(try decode("event_msg", ["type": "token_count", "info": ["model_context_window": 900_000]]))
+        slice.consume(try decode("compacted", ["window_id": "w-3", "window_number": 3]))
+        XCTAssertEqual(slice.modelContextWindow, 200_000)
+        XCTAssertEqual(slice.contextWindowNumber, 2)
+        XCTAssertTrue(slice.resolvedNodes(parentID: "root").allSatisfy { $0.modelContextWindow == 200_000 })
+        XCTAssertFalse(String(describing: slice.resolvedNodes(parentID: "root")).contains("private"))
+        for invalid in [-1 as Any, 0 as Any, "100" as Any, Int.max as Any] {
+            XCTAssertNil(try decode("event_msg", ["type": "token_count", "info": ["model_context_window": invalid]]).modelContextWindow)
+        }
+        XCTAssertNil(try decode("compacted", ["window_number": -1]).contextWindowNumber)
+        XCTAssertEqual(try decode("compacted", ["window_number": 0]).contextWindowNumber, 0)
+    }
+
+    func testCompactionMarkersDeduplicateAndFallBackPerTurnWithoutInventingTiming() throws {
+        var slice = ReplyTraceSlice(threadID: "main", turnID: nil)
+        slice.consume(try decode("turn_context", ["turn_id": "turn-a"]))
+        let marker = try decode("compacted", ["window_id": "w-1", "window_number": 1], offset: 300)
+        slice.consume(marker)
+        slice.consume(marker)
+        let item = try decode("event_msg", ["type": "item_completed", "started_at_ms": base + 100, "completed_at_ms": base + 300,
+            "item": ["type": "ContextCompaction", "id": "compact"]], offset: 300)
+        slice.consume(item)
+        slice.consume(item)
+        slice.consume(try decode("turn_context", ["turn_id": "turn-b"]))
+        slice.consume(try decode("compacted", ["window_id": "w-2", "window_number": 2], offset: 400))
+        let trace = ReplyTrace(nodes: slice.resolvedNodes(parentID: "root"), notices: [])
+        XCTAssertEqual(trace.compactions.count, 2)
+        XCTAssertEqual(trace.compactions.map(\.timing), [.recorded, .point])
+        XCTAssertNil(trace.compactions.first?.contextWindowNumber)
+        XCTAssertEqual(trace.compactions.last?.contextWindowNumber, 2)
+        XCTAssertEqual(trace.recordedCompactionDuration, 200)
+    }
+
+    func testCompactionDurationUnionsParallelIntervalsAndExcludesIncompleteRecords() {
+        var first = traceNode("first", kind: .compaction, duration: 200)
+        var second = traceNode("second", kind: .compaction, duration: 300)
+        second.startedAt += 100
+        let third = traceNode("point", kind: .compaction, duration: nil, timing: .point)
+        var running = traceNode("running", kind: .compaction, duration: 5_000)
+        running.status = .running
+        XCTAssertEqual(ReplyTrace(nodes: [first, second, third, running], notices: []).recordedCompactionDuration, 300)
+        first.status = .failed
+        XCTAssertNil(ReplyTrace(nodes: [first, third, running], notices: []).recordedCompactionDuration)
     }
 
     private func traceNode(_ id: String, kind: ReplyTraceNodeKind = .tool, duration: Int64? = 100,

@@ -41,7 +41,7 @@ python3 script/export_screenshots.py
 | 设置分区 | [外观](codexvista-settings-appearance.png)、[看板与摘要](codexvista-settings-dashboard.png)、[额度提醒](codexvista-settings-reminders.png)、[数据与更新](codexvista-settings-data.png)、[订阅与套餐](codexvista-settings-plans.png) |
 | 设置入口 | [外观分类内容](codexvista-settings.png) |
 | 最小窗口与密集数据 | [30 条任务](layout/main-dense.png)、[项目回复](layout/project-replies.png)、[任务回复](layout/task-回复明细.png)、[长工具名称](layout/activity-long-name.png) |
-| 调用链与阅读窗口 | [窄调用链](layout/reply-trace-880.png)、[宽调用链](layout/reply-trace-1040.png)、[慢工具排行](layout/reply-trace-slow-tools.png)、[完整每日用量](layout/daily-reading.png) |
+| 调用链与阅读窗口 | [窄调用链](layout/reply-trace-880.png)、[宽调用链](layout/reply-trace-1040.png)、[慢工具排行](layout/reply-trace-slow-tools.png)、[上下文压缩](layout/reply-trace-context.png)、[执行会话](layout/reply-trace-execution.png)、[子代理详情](layout/reply-trace-agent.png)、[MCP 元数据](layout/reply-trace-mcp.png)、[模型输入输出](layout/reply-trace-model-content.png)、[推理输入输出](layout/reply-trace-reasoning-content.png)、[完整每日用量](layout/daily-reading.png) |
 | 经典与水墨 | [经典浅色](themes/codexvista-light.png)、[经典深色](themes/codexvista-dark.png)、[水墨浅色](themes/codexvista-ink-light.png) |
 | 青瓷与暮霞 | [青瓷浅色](themes/codexvista-celadon-light.png)、[青瓷深色](themes/codexvista-celadon-dark.png)、[暮霞浅色](themes/codexvista-dusk-light.png)、[暮霞深色](themes/codexvista-dusk-dark.png) |
 | 固定色系与摘要 | [未来科技](themes/codexvista-cyber-dark.png)、[仙侠](themes/codexvista-xianxia-light.png)、[全部摘要配色](themes/codexvista-summary-themes.png) |

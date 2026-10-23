@@ -969,7 +969,7 @@ struct SettingsView: View {
 
     private var privacyNotice: some View {
         Label {
-            Text("CodexVista 只读取本机 Codex 的安全统计字段，并将聚合数据保存在应用支持目录中。")
+            Text("统计导入只读取本机 Codex 的必要字段。节点输入输出仅在打开详情时读取，不入库、不写日志、不上传。聚合统计保存在应用支持目录中。")
         } icon: {
             Image(systemName: "lock.shield")
         }
