@@ -3,6 +3,160 @@ import XCTest
 @testable import CodexVista
 
 final class CodexImporterTests: XCTestCase {
+    func testForkWithoutParentMetadataDeduplicatesTruncatedPrefixAndPreservesNewUsage() async throws {
+        let fixture = try CodexFixture.make(events: [.sessionCLI, .turn(model: "gpt-synthetic"),
+            .token(input: 100, cached: 40, output: 20, reasoning: 5, plan: "plus"),
+            .token(input: 200, cached: 80, output: 40, reasoning: 10, plan: "plus", second: 7)])
+        let child = try writeFork(fixture: fixture)
+        try fixture.append(.token(input: 250, cached: 100, output: 50, reasoning: 12, plan: "plus", second: 8), to: child)
+        // This repeats an older counter value in a new segment: it is real new usage.
+        try fixture.append(.token(input: 100, cached: 40, output: 20, reasoning: 5, plan: "plus", second: 9), to: child)
+        try fixture.setRolloutModificationDate(Date(timeIntervalSince1970: 1_000))
+        let store = try UsageStore(databaseURL: fixture.databaseURL)
+        let importer = CodexImporter(rootURL: fixture.codexRoot, store: store)
+        // Newest child is imported first, before its original source is available in the store.
+        let foreground = await importer.refresh(scope: .foreground)
+        XCTAssertTrue(foreground.isSuccessful, "\(foreground.issues)")
+        XCTAssertEqual(try store.totalUsage(), 420)
+        let history = await importer.refresh(scope: .history)
+        XCTAssertTrue(history.isSuccessful, "\(history.issues)")
+        XCTAssertEqual(try store.totalUsage(), 420)
+        XCTAssertEqual(try store.usageEventCount(), 4)
+        let restarted = CodexImporter(rootURL: fixture.codexRoot, store: store)
+        _ = await restarted.refresh(scope: .history)
+        XCTAssertEqual(try store.totalUsage(), 420)
+        let compressed = child.appendingPathExtension("zst")
+        try syntheticZstd(Data(contentsOf: child)).write(to: compressed)
+        try FileManager.default.removeItem(at: child)
+        _ = await restarted.rebuildFromLocalData()
+        XCTAssertEqual(try store.totalUsage(), 420)
+        XCTAssertEqual(try store.hourlyUsage().reduce(0) { $0 + $1.totalTokens }, 420)
+    }
+
+    func testForkDeduplicationRequiresExplicitLineageCompatibleTurnAndOlderOriginal() async throws {
+        for variant in ["unrelated", "different-turn", "parent-after-fork", "missing-parent"] {
+            let fixture = try CodexFixture.make(events: [.sessionCLI, .turn(model: "gpt-synthetic"),
+                .token(input: 200, cached: 80, output: 40, reasoning: 10, plan: "plus")])
+            _ = try writeFork(fixture: fixture, variant: variant)
+            if variant == "missing-parent" { try FileManager.default.removeItem(at: fixture.rolloutURL) }
+            let store = try UsageStore(databaseURL: fixture.databaseURL)
+            let result = await CodexImporter(rootURL: fixture.codexRoot, store: store).refresh(scope: .history)
+            XCTAssertTrue(result.isSuccessful, "\(variant): \(result.issues)")
+            XCTAssertEqual(try store.totalUsage(), variant == "missing-parent" ? 240 : 480, variant)
+        }
+    }
+
+    func testNestedForkWithMissingTurnContextKeepsOneOriginalAcrossRebuild() async throws {
+        let fixture = try CodexFixture.make(events: [.sessionCLI, .turn(model: "gpt-synthetic"),
+            .token(input: 100, cached: 40, output: 20, reasoning: 5, plan: "plus"),
+            .token(input: 200, cached: 80, output: 40, reasoning: 10, plan: "plus", second: 7)])
+        let child = try writeFork(fixture: fixture)
+        let childText = try String(contentsOf: child, encoding: .utf8)
+        let nestedText = childText
+            .replacingOccurrences(of: "synthetic-child", with: "synthetic-grandchild")
+            .replacingOccurrences(of: CodexFixture.threadID, with: "synthetic-child")
+            .replacingOccurrences(of: "2026-07-15", with: "2026-07-16")
+            .split(separator: "\n").filter { !$0.contains("turn_context") }.joined(separator: "\n") + "\n"
+        try Data(nestedText.utf8).write(to: child.deletingLastPathComponent().appending(path: "nested.jsonl"))
+        let store = try UsageStore(databaseURL: fixture.databaseURL)
+        let importer = CodexImporter(rootURL: fixture.codexRoot, store: store)
+        let result = await importer.refresh(scope: .history)
+        XCTAssertTrue(result.isSuccessful, "\(result.issues)")
+        XCTAssertEqual(try store.totalUsage(), 240)
+        XCTAssertEqual(try store.usageEventCount(), 2)
+        XCTAssertEqual(Set(try store.usageEvents().map(\.threadID)), [CodexFixture.threadID])
+        _ = await importer.rebuildFromLocalData()
+        XCTAssertEqual(try store.totalUsage(), 240)
+        XCTAssertEqual(try store.hourlyUsage().reduce(0) { $0 + $1.totalTokens }, 240)
+    }
+
+    func testForkLifecycleTurnRewritingDoesNotHideCopiedCounters() async throws {
+        let fixture = try CodexFixture.make(events: [.sessionCLI, .turn(model: "gpt-synthetic"),
+            .token(input: 200, cached: 80, output: 40, reasoning: 10, plan: "plus")])
+        let child = try writeFork(fixture: fixture)
+        var lines = try String(contentsOf: child, encoding: .utf8).split(separator: "\n").map(String.init)
+        lines.insert("""
+            {"timestamp":"2026-07-15T01:00:00.000Z","type":"event_msg","payload":{"type":"task_started","turn_id":"rewritten-child-task"}}
+            """, at: 2)
+        try Data((lines.joined(separator: "\n") + "\n").utf8).write(to: child)
+        let store = try UsageStore(databaseURL: fixture.databaseURL)
+        let result = await CodexImporter(rootURL: fixture.codexRoot, store: store).refresh(scope: .history)
+        XCTAssertTrue(result.isSuccessful, "\(result.issues)")
+        XCTAssertEqual(try store.totalUsage(), 240)
+        XCTAssertEqual(try store.usageEventCount(), 1)
+    }
+
+    private func writeFork(fixture: CodexFixture, variant: String = "copied") throws -> URL {
+        let child = fixture.rolloutURL.deletingLastPathComponent().appending(path: "child.jsonl")
+        let relationship = variant == "unrelated" ? "parent_thread_id" : "forked_from_id"
+        let timestamp = variant == "parent-after-fork" ? "2026-07-13T00:00:00.000Z" : "2026-07-15T00:00:00.000Z"
+        let turn = variant == "different-turn" ? "child-own-turn" : "turn-1"
+        let lines = [
+            "{\"timestamp\":\"\(timestamp)\",\"type\":\"session_meta\",\"payload\":{\"id\":\"synthetic-child\",\"cli_version\":\"1.0.0\",\"\(relationship)\":\"\(CodexFixture.threadID)\"}}",
+            "{\"type\":\"turn_context\",\"payload\":{\"turn_id\":\"\(turn)\",\"model\":\"gpt-synthetic\"}}",
+            CodexFixture.Event.token(input: 200, cached: 80, output: 40, reasoning: 10, plan: "plus", second: 7).line
+                .replacingOccurrences(of: "2026-07-14", with: "2026-07-15")
+        ]
+        try Data((lines.joined(separator: "\n") + "\n").utf8).write(to: child)
+        return child
+    }
+
+    func testCompressedHistorySurvivesRefreshRestartArchiveAndRebuildWithoutDuplicates() async throws {
+        let fixture = try CodexFixture.make(events: [.sessionCLI, .turn(model: "gpt-synthetic"),
+            .token(input: 100, cached: 40, output: 20, reasoning: 5, plan: "plus")])
+        try fixture.installIndex(archived: false, childEdgeStatus: "running", updatedAtMilliseconds: 2_000)
+        let store = try UsageStore(databaseURL: fixture.databaseURL)
+        let importer = CodexImporter(rootURL: fixture.codexRoot, store: store)
+        let initial = await importer.refresh(scope: .history)
+        XCTAssertTrue(initial.isSuccessful, "\(initial.issues)")
+        let compressed = fixture.rolloutURL.appendingPathExtension("zst")
+        try syntheticZstd(Data(contentsOf: fixture.rolloutURL)).write(to: compressed)
+        let overlap = await importer.refresh(scope: .history)
+        XCTAssertTrue(overlap.isSuccessful, "\(overlap.issues)")
+        XCTAssertEqual(overlap.discoveredFileIDs?.count, 2)
+        XCTAssertEqual(try store.totalUsage(), 120)
+        XCTAssertEqual(try store.usageEventCount(), 1)
+        try FileManager.default.removeItem(at: fixture.rolloutURL)
+        let restarted = CodexImporter(rootURL: fixture.codexRoot, store: store)
+        let repeated = await restarted.refresh(scope: .history)
+        XCTAssertTrue(repeated.isSuccessful, "\(repeated.issues)")
+        XCTAssertEqual(repeated.processedFileCount, 0)
+        let rebuilt = await restarted.rebuildFromLocalData()
+        XCTAssertTrue(rebuilt.isSuccessful, "\(rebuilt.issues)")
+        XCTAssertEqual(try store.totalUsage(), 120)
+        XCTAssertEqual(try store.usageEventCount(), 1)
+        let archive = fixture.codexRoot.appending(path: "archived_sessions/rollout.jsonl.zst")
+        try FileManager.default.createDirectory(at: archive.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try FileManager.default.moveItem(at: compressed, to: archive)
+        let archived = await restarted.refresh(scope: .history)
+        XCTAssertTrue(archived.isSuccessful, "\(archived.issues)")
+        XCTAssertEqual(try store.totalUsage(), 120)
+        XCTAssertEqual(try store.usageEventCount(), 1)
+    }
+
+    func testDamagedCompressedSourceDoesNotCommitAndRecoversWhenCompleted() async throws {
+        let fixture = try CodexFixture.make(events: [.sessionCLI, .turn(model: "gpt-synthetic"),
+            .token(input: 100, cached: 40, output: 20, reasoning: 5, plan: "plus")])
+        let compressed = fixture.rolloutURL.appendingPathExtension("zst")
+        let frame = try syntheticZstd(Data(contentsOf: fixture.rolloutURL))
+        try frame.dropLast().write(to: compressed)
+        try FileManager.default.removeItem(at: fixture.rolloutURL)
+        let store = try UsageStore(databaseURL: fixture.databaseURL)
+        let importer = CodexImporter(rootURL: fixture.codexRoot, store: store)
+        let failed = await importer.refresh(scope: .history)
+        XCTAssertEqual(failed.issues.map(\.kind), [.read])
+        XCTAssertEqual(try store.totalUsage(), 0)
+        let fileID = try XCTUnwrap(failed.discoveredFileIDs?.first)
+        XCTAssertNil(try store.fileCheckpoint(fileID: fileID))
+        try frame.write(to: compressed)
+        let recovered = await importer.refresh(scope: .history)
+        XCTAssertTrue(recovered.isSuccessful)
+        XCTAssertEqual(try store.totalUsage(), 120)
+        let checkpoint = try XCTUnwrap(store.fileCheckpoint(fileID: fileID))
+        XCTAssertGreaterThan(checkpoint.committedOffset, checkpoint.fileSize)
+        XCTAssertEqual(checkpoint.committedOffset, checkpoint.activityCommittedOffset)
+    }
+
     func testVisualizationRootsMergeHistoricalUsageWithoutChangingTokensOrCheckpoint() async throws {
         let fixture = try CodexFixture.make(events: [.sessionCLI])
         let root = "/synthetic/business"

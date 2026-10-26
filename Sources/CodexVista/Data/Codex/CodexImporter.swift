@@ -94,6 +94,7 @@ actor CodexImporter {
     private var workspaceRootRepositoryIDs: [String: String] = [:]
     private var attemptedWorkspaceRootRepositories: Set<String> = []
     private var workspaceBindingRepairSignatures: [String: String] = [:]
+    private var forkUsageDeduplicator = ForkUsageDeduplicator()
 
     init(
         rootURL: URL,
@@ -250,6 +251,13 @@ actor CodexImporter {
             await progress?(.importing(completed: completed, total: selected.count))
         }
 
+        do {
+            let copies = try forkUsageDeduplicator.copiedFingerprints(in: inventory.rollouts)
+            try store.removeCopiedUsageEvents(copies)
+        } catch {
+            issues.append(.init(kind: .store, fileID: nil, detail: "fork-usage-reconciliation-failed"))
+        }
+
         return ImportResult(
             scope: scope,
             processedFileCount: processed,
@@ -283,7 +291,10 @@ actor CodexImporter {
             if checkpoint.path != rollout.url.path
                 || UInt64(bitPattern: checkpoint.deviceID) != rollout.deviceID
                 || UInt64(bitPattern: checkpoint.inode) != rollout.inode
-                || checkpoint.committedOffset > rollout.fileSize {
+                || (RolloutByteStream.isCompressed(rollout.url)
+                    ? checkpoint.fileSize != rollout.fileSize
+                        || checkpoint.lastRecordAtMilliseconds != rollout.modificationTimeMilliseconds
+                    : checkpoint.committedOffset > rollout.fileSize) {
                 return true
             }
         }
@@ -476,7 +487,9 @@ actor CodexImporter {
 
         let activityReadBatch: JSONLReadBatch?
         do {
-            let initial = try reader.read(file: rollout.url, fromOffset: activityCommittedOffset)
+            let initial = activityCommittedOffset == (previousFile?.committedOffset ?? 0)
+                ? readBatch
+                : try reader.read(file: rollout.url, fromOffset: activityCommittedOffset)
             activityReadBatch = initial.wasTruncated
                 ? try reader.read(file: rollout.url, fromOffset: 0)
                 : initial
@@ -597,7 +610,7 @@ actor CodexImporter {
             threadID: context.threadID ?? recoveredThreadID,
             committedOffset: committedOffset,
             generation: previousFile?.generation ?? 0,
-            lastRecordAtMilliseconds: hadCompleteLine
+            lastRecordAtMilliseconds: hadCompleteLine || (lineIssue == nil && RolloutByteStream.isCompressed(rollout.url))
                 ? rollout.modificationTimeMilliseconds
                 : previousFile?.lastRecordAtMilliseconds,
             lastSuccessAtMilliseconds: lineIssue == nil ? now : previousFile?.lastSuccessAtMilliseconds,
@@ -682,11 +695,11 @@ actor CodexImporter {
                 }
                 if let delta = UsageAccumulator.delta(previous: previous, current: counters) {
                     usageEvents.append(StoredUsageEvent(
-                        fingerprint: fingerprint(canonicalUsage(
+                        fingerprint: UsageEventIdentity.fingerprint(
                             threadID: threadID,
-                            counterSegment: context.counterSegment,
+                            segment: context.counterSegment,
                             counters: counters
-                        )),
+                        ),
                         observedAtMilliseconds: snapshot.observedAtMilliseconds,
                         threadID: threadID,
                         turnID: context.currentTurnID,
@@ -924,12 +937,19 @@ actor CodexImporter {
     ) -> Bool {
         guard let previousFile,
               previousFile.fileSize == rollout.fileSize,
-              previousFile.committedOffset == rollout.fileSize,
-              previousFile.activityCommittedOffset == rollout.fileSize,
               previousFile.path == rollout.url.path,
               previousFile.formatStatus == "supported",
               let storedSession else {
             return false
+        }
+        if RolloutByteStream.isCompressed(rollout.url) {
+            // Physical compressed size cannot be compared with decoded byte offsets.
+            // Successful scanners have consumed the validated stream through its last newline.
+            guard previousFile.lastRecordAtMilliseconds == rollout.modificationTimeMilliseconds,
+                  previousFile.committedOffset == previousFile.activityCommittedOffset else { return false }
+        } else {
+            guard previousFile.committedOffset == rollout.fileSize,
+                  previousFile.activityCommittedOffset == rollout.fileSize else { return false }
         }
         let index = indexRecord(for: storedSession.threadID, rollout: rollout, inventory: inventory)
         if let archiveFact {
@@ -1135,14 +1155,6 @@ actor CodexImporter {
             || current.cachedInput < previous.cachedInput
             || current.output < previous.output
             || current.reasoning < previous.reasoning
-    }
-
-    private func canonicalUsage(
-        threadID: String,
-        counterSegment: Int64,
-        counters: TokenCounters
-    ) -> String {
-        "usage-v2|\(threadID)|\(counterSegment)|\(counters.input)|\(counters.cachedInput)|\(counters.output)|\(counters.reasoning)"
     }
 
     private func canonicalQuota(

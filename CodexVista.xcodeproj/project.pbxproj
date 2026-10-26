@@ -71,6 +71,9 @@
 		A00000000000000000000099 /* ReplyTraceNodeContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000099 /* ReplyTraceNodeContent.swift */; };
 		A00000000000000000000097 /* ReplyTraceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B00000000000000000000097 /* ReplyTraceTests.swift */; };
 		A0000000000000000000009C /* ReplyTraceContentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000009C /* ReplyTraceContentTests.swift */; };
+		A0000000000000000000009D /* zstddeclib.c in Sources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000009D /* zstddeclib.c */; };
+		A0000000000000000000009E /* Zstd-LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000009E /* Zstd-LICENSE */; };
+		A0000000000000000000009F /* ForkUsageDeduplicator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0000000000000000000009F /* ForkUsageDeduplicator.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -151,6 +154,9 @@
 		B00000000000000000000099 /* ReplyTraceNodeContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/CodexVista/Models/ReplyTraceNodeContent.swift; sourceTree = SOURCE_ROOT; };
 		B00000000000000000000097 /* ReplyTraceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests/CodexVistaTests/ReplyTraceTests.swift; sourceTree = SOURCE_ROOT; };
 		B0000000000000000000009C /* ReplyTraceContentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests/CodexVistaTests/ReplyTraceContentTests.swift; sourceTree = SOURCE_ROOT; };
+		B0000000000000000000009D /* zstddeclib.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = Sources/CodexVista/Vendor/Zstd/zstddeclib.c; sourceTree = SOURCE_ROOT; };
+		B0000000000000000000009E /* Zstd-LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = Sources/CodexVista/Vendor/Zstd/Zstd-LICENSE; sourceTree = SOURCE_ROOT; };
+		B0000000000000000000009F /* ForkUsageDeduplicator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Sources/CodexVista/Data/Codex/ForkUsageDeduplicator.swift; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -231,8 +237,11 @@
 				B00000000000000000000019 /* SQLiteDatabase.swift */,
 				B00000000000000000000020 /* UsageStore.swift */,
 				B00000000000000000000023 /* CodexSourceDiscovery.swift */,
+				B0000000000000000000009D /* zstddeclib.c */,
+				B0000000000000000000009E /* Zstd-LICENSE */,
 				B00000000000000000000024 /* IncrementalJSONLReader.swift */,
 				B00000000000000000000025 /* CodexImporter.swift */,
+				B0000000000000000000009F /* ForkUsageDeduplicator.swift */,
 				B00000000000000000000027 /* DashboardQueryService.swift */,
 				B00000000000000000000028 /* SessionQueryService.swift */,
 				B00000000000000000000031 /* DashboardStore.swift */,
@@ -358,6 +367,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A0000000000000000000009E /* Zstd-LICENSE in Resources */,
 				A00000000000000000000034 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -415,8 +425,10 @@
 				A00000000000000000000019 /* SQLiteDatabase.swift in Sources */,
 				A00000000000000000000020 /* UsageStore.swift in Sources */,
 				A00000000000000000000023 /* CodexSourceDiscovery.swift in Sources */,
+				A0000000000000000000009D /* zstddeclib.c in Sources */,
 				A00000000000000000000024 /* IncrementalJSONLReader.swift in Sources */,
 				A00000000000000000000025 /* CodexImporter.swift in Sources */,
+				A0000000000000000000009F /* ForkUsageDeduplicator.swift in Sources */,
 				A00000000000000000000027 /* DashboardQueryService.swift in Sources */,
 				A00000000000000000000028 /* SessionQueryService.swift in Sources */,
 				A00000000000000000000031 /* DashboardStore.swift in Sources */,
@@ -469,6 +481,7 @@
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_TESTABILITY = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
+				SWIFT_INCLUDE_PATHS = "$(inherited) $(SRCROOT)/Sources/CodexVista/Vendor/Zstd";
 				GCC_OPTIMIZATION_LEVEL = 0;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				ONLY_ACTIVE_ARCH = YES;
@@ -486,6 +499,7 @@
 				CLANG_ENABLE_OBJC_ARC = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				GCC_C_LANGUAGE_STANDARD = gnu17;
+				SWIFT_INCLUDE_PATHS = "$(inherited) $(SRCROOT)/Sources/CodexVista/Vendor/Zstd";
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				SDKROOT = macosx;
 				SWIFT_COMPILATION_MODE = wholemodule;

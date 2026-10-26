@@ -3,6 +3,61 @@ import XCTest
 @testable import CodexVista
 
 final class IncrementalJSONLReaderTests: XCTestCase {
+    func testZstdReadsCompressedBlocksAndResumesAtLogicalOffsets() throws {
+        let url = try temporaryDirectory().appending(path: "rollout.jsonl.zst")
+        // Synthetic zstd stream with checksum and unknown content size, generated with zstd 1.5.7.
+        try XCTUnwrap(Data(base64Encoded: "KLUv/QRYtQAAeGZpcnN0CngKcGFydGlhbAEA5CtgBNqcWtg="))
+            .write(to: url)
+        let reader = IncrementalJSONLReader(chunkSize: 7)
+        let first = try reader.read(file: url, fromOffset: 0)
+        XCTAssertEqual(first.lines.map(\.data), [Data("first".utf8), Data(repeating: 120, count: 1_000)])
+        XCTAssertEqual(first.committedOffset, 1_007)
+        let resumed = try reader.read(file: url, fromOffset: 1_007)
+        XCTAssertFalse(resumed.wasTruncated)
+        XCTAssertTrue(resumed.lines.isEmpty)
+        XCTAssertEqual(resumed.committedOffset, 1_007)
+        let truncated = try reader.read(file: url, fromOffset: 2_000)
+        XCTAssertTrue(truncated.wasTruncated)
+    }
+
+    func testZstdConcatenatedFramesAndDamagedStreams() throws {
+        let url = try temporaryDirectory().appending(path: "rollout.jsonl.zst")
+        let first = try XCTUnwrap(Data(base64Encoded: "KLUv/QRYEQAAYQpVyMwe"))
+        let second = try XCTUnwrap(Data(base64Encoded: "KLUv/QRYGQAAYmIKzUFj7A=="))
+        try (first + second).write(to: url)
+        let reader = IncrementalJSONLReader(chunkSize: 1)
+        XCTAssertEqual(try reader.read(file: url, fromOffset: 0).lines.map(\.data), [Data("a".utf8), Data("bb".utf8)])
+        try (first + second.dropLast()).write(to: url)
+        XCTAssertThrowsError(try reader.read(file: url, fromOffset: 0))
+        var corrupt = first
+        corrupt[corrupt.count - 1] ^= 0xff
+        try corrupt.write(to: url)
+        XCTAssertThrowsError(try reader.read(file: url, fromOffset: 0))
+        try Data().write(to: url)
+        XCTAssertThrowsError(try reader.read(file: url, fromOffset: 0))
+    }
+
+    func testDiscoveryFindsCompressedHistoryAndMatchesUncompressedIndexPath() throws {
+        let root = try temporaryDirectory()
+        let plain = root.appending(path: "sessions/2026/07/14/rollout.jsonl")
+        try write("{}\n", to: plain)
+        try makeThreadDatabase(at: root.appending(path: "state_1.sqlite"), threadID: "compressed",
+            rolloutPath: plain.path, source: "cli", model: "gpt-test",
+            createdAtMilliseconds: 1_000, updatedAtMilliseconds: 2_000, archived: false)
+        try syntheticZstd(Data("{}\n".utf8)).write(to: plain.appendingPathExtension("zst"))
+        try FileManager.default.removeItem(at: plain)
+        let archive = root.appending(path: "archived_sessions/archive.jsonl.zst")
+        try FileManager.default.createDirectory(at: archive.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try syntheticZstd(Data("{}\n".utf8)).write(to: archive)
+        try write("ignored", to: root.appending(path: "sessions/ignored.zst"))
+        let inventory = try CodexSourceDiscovery().discover(rootURL: root)
+        XCTAssertEqual(inventory.indexHealth, .available)
+        XCTAssertEqual(inventory.threadIndex.map(\.threadID), ["compressed"])
+        XCTAssertEqual(inventory.rollouts.count, 2)
+        XCTAssertEqual(inventory.rollouts.first { !$0.isArchived }?.thread?.threadID, "compressed")
+        XCTAssertEqual(inventory.rollouts.filter(\.isArchived).count, 1)
+    }
+
     func testCommitsOnlyCompleteLinesAndContinuesAfterAppendAcrossChunkBoundaries() throws {
         let url = try temporaryFile(contents: "{\"type\":\"one\"}\n{\"type\":\"two")
         let reader = IncrementalJSONLReader(chunkSize: 8)
@@ -516,6 +571,9 @@ final class IncrementalJSONLReaderTests: XCTestCase {
             metadata.childThreadRelationsByChildThreadID["child"]?.childCreatedAtMilliseconds,
             expectedCreatedAt
         )
+        try syntheticZstd(Data(contentsOf: rollout)).write(to: rollout.appendingPathExtension("zst"))
+        try FileManager.default.removeItem(at: rollout)
+        XCTAssertEqual(CodexSourceDiscovery().threadDashboardMetadata(rootURL: root), metadata)
     }
 
     func testConflictingChildStatusesDegradeDiscoveryWithoutBlockingRollouts() throws {
@@ -673,4 +731,27 @@ private extension IncrementalJSONLReaderTests {
             ]
         )
     }
+}
+
+// Anonymous, valid Zstandard frame: a run-length whitespace block followed by raw blocks.
+// No compressor or external executable is required by the tests.
+func syntheticZstd(_ content: Data, padding: Int = 4_096) -> Data {
+    let size = UInt32(content.count + padding)
+    var result = Data([0x28, 0xb5, 0x2f, 0xfd, 0xa0])
+    for shift in stride(from: 0, to: 32, by: 8) { result.append(UInt8(truncatingIfNeeded: size >> shift)) }
+    func appendHeader(_ value: Int) {
+        for shift in stride(from: 0, to: 24, by: 8) { result.append(UInt8(truncatingIfNeeded: value >> shift)) }
+    }
+    if padding > 0 {
+        appendHeader((padding << 3) | 2)
+        result.append(32)
+    }
+    var offset = 0
+    repeat {
+        let count = min(128 * 1_024, content.count - offset)
+        appendHeader((count << 3) | (offset + count == content.count ? 1 : 0))
+        result.append(content[offset..<(offset + count)])
+        offset += count
+    } while offset < content.count
+    return result
 }

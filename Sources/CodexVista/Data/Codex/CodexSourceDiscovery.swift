@@ -109,6 +109,11 @@ struct CodexSourceDiscovery {
         var recordsByPath: [String: ThreadIndexRecord] = [:]
         for record in indexResult.records {
             recordsByPath[canonicalPath(record.rolloutPath)] = record
+            if record.rolloutPath.hasSuffix(".jsonl") {
+                // Resolve the existing compressed path too: the absent plain path may
+                // no longer resolve symlink aliases (for example /var and /private/var).
+                recordsByPath[canonicalPath(record.rolloutPath + ".zst")] = record
+            }
         }
 
         let sessionsURL = rootURL.appending(path: "sessions", directoryHint: .isDirectory)
@@ -167,17 +172,17 @@ struct CodexSourceDiscovery {
     private func sessionThreadRelation(
         for record: ThreadIndexRecord
     ) -> CodexChildThreadRelation? {
-        let url = URL(fileURLWithPath: record.rolloutPath)
-        guard fileManager.fileExists(atPath: url.path),
-              let handle = try? FileHandle(forReadingFrom: url) else {
+        let indexedURL = URL(fileURLWithPath: record.rolloutPath)
+        let url = fileManager.fileExists(atPath: indexedURL.path)
+            ? indexedURL : indexedURL.appendingPathExtension("zst")
+        guard let stream = try? RolloutByteStream(url: url) else {
             return nil
         }
-        defer { try? handle.close() }
 
         let maximumLineBytes = 2 * 1_024 * 1_024
         var data = Data()
         while data.count < maximumLineBytes {
-            guard let chunk = try? handle.read(
+            guard let chunk = try? stream.read(
                 upToCount: min(64 * 1_024, maximumLineBytes - data.count)
             ), !chunk.isEmpty else {
                 break
@@ -281,7 +286,7 @@ struct CodexSourceDiscovery {
         }
 
         var result: [URL] = []
-        for case let url as URL in enumerator where url.pathExtension == "jsonl" {
+        for case let url as URL in enumerator where RolloutByteStream.isRollout(url) {
             let values = try url.resourceValues(forKeys: [.isRegularFileKey])
             if values.isRegularFile == true { result.append(url) }
         }
@@ -296,7 +301,7 @@ struct CodexSourceDiscovery {
             includingPropertiesForKeys: [.isRegularFileKey],
             options: [.skipsHiddenFiles]
         ).filter { url in
-            guard url.pathExtension == "jsonl" else { return false }
+            guard RolloutByteStream.isRollout(url) else { return false }
             return (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
         }
     }
@@ -323,7 +328,9 @@ struct CodexSourceDiscovery {
         let deviceID = device.uint64Value
         let inodeValue = inode.uint64Value
         let path = canonicalPath(url.path)
+        // Codex may retain the .jsonl index path after replacing it with .jsonl.zst.
         let thread = recordsByPath[path]
+            ?? recordsByPath[canonicalPath(RolloutByteStream.uncompressedURL(url).path)]
         let identity = "\(path)|\(thread?.threadID ?? "unindexed")"
         let fileID = SHA256.hash(data: Data(identity.utf8))
             .map { String(format: "%02x", $0) }

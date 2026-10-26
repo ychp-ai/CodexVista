@@ -73,6 +73,22 @@ final class ReplyTraceTests: XCTestCase {
         XCTAssertEqual(nodes[0].timing, .point)
     }
 
+    func testCompressedTraceReaderKeepsDecodedByteAndLineLimits() throws {
+        let url = try temporaryDirectory().appending(path: "test.jsonl.zst")
+        try syntheticZstd(Data("a\n123456789\nbb\npartial".utf8), padding: 0).write(to: url)
+        var lines: [String] = []
+        let incomplete = try ReplyTraceLineReader(maximumLineBytes: 4, maximumFileBytes: 1_000, chunkSize: 3).read(url) {
+            lines.append(String(decoding: $0, as: UTF8.self))
+        }
+        XCTAssertTrue(incomplete)
+        XCTAssertEqual(lines, ["a", "bb"])
+        lines = []
+        XCTAssertTrue(try ReplyTraceLineReader(maximumLineBytes: 4, maximumFileBytes: 2, chunkSize: 3).read(url) {
+            lines.append(String(decoding: $0, as: UTF8.self))
+        })
+        XCTAssertEqual(lines, ["a"])
+    }
+
     func testStreamingReaderSkipsOversizedLinesAndDoesNotCommitPartialLine() throws {
         let directory = try temporaryDirectory()
         let url = directory.appending(path: "test.jsonl")
@@ -126,6 +142,13 @@ final class ReplyTraceTests: XCTestCase {
         XCTAssertTrue(trace.nodes.allSatisfy { node in
             node.parentID == nil || trace.nodes.contains(where: { $0.id == node.parentID })
         })
+        for name in ["main", "child"] {
+            let plain = sessions.appending(path: "rollout-\(name).jsonl")
+            try syntheticZstd(Data(contentsOf: plain), padding: 0).write(to: plain.appendingPathExtension("zst"))
+            try FileManager.default.removeItem(at: plain)
+        }
+        let compressedTrace = try await ReplyTraceService(rootURL: directory).load(reply: reply())
+        XCTAssertEqual(compressedTrace, trace)
     }
 
     func testMissingRolloutHasDistinctError() async throws {

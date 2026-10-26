@@ -33,7 +33,7 @@ actor ReplyTraceService {
         do { inventory = try CodexSourceDiscovery().discover(rootURL: rootURL) }
         catch { throw ReplyTraceError.unreadableSource }
         guard let url = inventory.rollouts.first(where: { $0.thread?.threadID == node.threadID })?.url
-            ?? inventory.rollouts.first(where: { $0.url.lastPathComponent.hasSuffix("-\(node.threadID).jsonl") })?.url
+            ?? inventory.rollouts.first(where: { RolloutByteStream.uncompressedURL($0.url).lastPathComponent.hasSuffix("-\(node.threadID).jsonl") })?.url
         else { throw ReplyTraceError.missingSource }
         do { return try ReplyTraceContentReader().read(url, node: node) }
         catch is CancellationError { throw CancellationError() }
@@ -43,7 +43,7 @@ actor ReplyTraceService {
     private func load(reply: ProjectReplyUsage, threadID: String, inventory: CodexSourceInventory) throws -> ReplyTrace {
         func source(_ id: String) -> URL? {
             inventory.rollouts.first { $0.thread?.threadID == id }?.url
-                ?? inventory.rollouts.first { $0.url.lastPathComponent.hasSuffix("-\(id).jsonl") }?.url
+                ?? inventory.rollouts.first { RolloutByteStream.uncompressedURL($0.url).lastPathComponent.hasSuffix("-\(id).jsonl") }?.url
         }
         guard let url = source(threadID) else { throw ReplyTraceError.missingSource }
         var main = ReplyTraceSlice(threadID: threadID, turnID: reply.id)

@@ -21,7 +21,7 @@ CodexVista 是一款原生 macOS 菜单栏应用，用于读取本机 Codex CLI 
 - 语言：Swift 6。
 - UI：SwiftUI、AppKit、Swift Charts。
 - 并发与状态：Swift Concurrency、Observation。
-- 存储：系统 SQLite3，不依赖第三方包。
+- 存储：系统 SQLite3。压缩历史读取内置官方 Zstandard 精简 C 解码器；来源、许可证和更新步骤见 `Sources/CodexVista/Vendor/Zstd/README.md`，不依赖外部命令或包管理器。
 - Bundle ID：`com.ychp.CodexVista`。
 - 发布架构：Universal Binary，必须同时包含 `arm64` 和 `x86_64`。
 - 发布渠道：GitHub Releases；当前 DMG 未签名、未公证。

@@ -246,14 +246,13 @@ struct ReplyTraceLineReader {
     var chunkSize = 64 * 1_024
 
     func read(_ url: URL, consume: (Data) throws -> Void) throws -> Bool {
-        let handle = try FileHandle(forReadingFrom: url)
-        defer { try? handle.close() }
+        let stream = try RolloutByteStream(url: url)
         var pending = Data()
         var skipping = false
         var incomplete = false
         var bytesRead = 0
         while bytesRead < maximumFileBytes,
-              let chunk = try handle.read(upToCount: min(chunkSize, maximumFileBytes - bytesRead)), !chunk.isEmpty {
+              let chunk = try stream.read(upToCount: min(chunkSize, maximumFileBytes - bytesRead)), !chunk.isEmpty {
             try Task.checkCancellation()
             bytesRead += chunk.count
             var start = chunk.startIndex

@@ -37,7 +37,8 @@ CodexVista 是一款仅在本机运行的原生 macOS 菜单栏应用，用于�
 | 语言 | Swift 6 |
 | UI | SwiftUI、AppKit、Swift Charts |
 | 状态 | Observation、Swift Concurrency |
-| 存储 | 系统 SQLite3，无第三方依赖 |
+| 存储 | 系统 SQLite3 |
+| 压缩历史 | 内置 Zstandard 1.5.7 精简 C 解码器，BSD 许可证，无外部命令依赖 |
 | Bundle ID | `com.ychp.CodexVista` |
 | 版本来源 | `Config/Version.xcconfig` |
 | 发布架构 | Universal Binary：`arm64` + `x86_64` |
@@ -49,7 +50,7 @@ CodexVista 是一款仅在本机运行的原生 macOS 菜单栏应用，用于�
 
 ```mermaid
 flowchart LR
-    A["Codex CLI / Desktop<br/>rollout JSONL"] --> C["来源发现与增量读取"]
+    A["Codex CLI / Desktop<br/>rollout JSONL / JSONL.ZST"] --> C["来源发现与增量读取"]
     B["state_*.sqlite<br/>只读线程索引"] --> C
     C --> D["最小事件解码"]
     D --> E["Token / 额度 / 套餐标准化"]
@@ -148,7 +149,10 @@ Sources/CodexVista/
 
 - `sessions/YYYY/MM/DD/rollout-*.jsonl`：活跃会话。
 - `archived_sessions/rollout-*.jsonl`：归档会话。
+- 两种目录中的 `.jsonl.zst`：Codex 压缩后的历史会话，使用相同统计口径。
 - 最新可识别的 `state_*.sqlite`：线程索引和关系补充。
+
+索引的 `rollout_path` 在压缩后可能仍以 `.jsonl` 结尾；发现时同时匹配现存的 `.jsonl.zst` 路径，包括符号链接别名。`RolloutByteStream` 共用于统计、首条关系元数据和按需调用链读取，支持连续 Zstandard 帧、未知解压大小和校验和；每次提供有界解压块，解码窗口上限 128 MiB，不写解压文件、不联网。截断或校验失败返回读取错误，统计批次不提交。调用链的行长、总量和取消限制按解压后的字节执行。解码器来源、哈希与更新方式见 `Sources/CodexVista/Vendor/Zstd/README.md`。
 
 7 天额度与 Token 用量使用同一条本地读取路径，来自 rollout 的 `event_msg.token_count` 记录。应用不启动 Codex app-server，也不发起独立账户额度请求。
 
@@ -307,16 +311,21 @@ Guardian 的“命令权限检查”属于内部任务：其 Token 保留在工�
 
 ### 11.1 文件身份与检查点
 
-- rollout 文件使用 device ID 与 inode 形成稳定身份，路径可变化。
-- 活跃文件移动到 `archived_sessions` 时更新路径，不重新计数。
-- 每个文件保存已提交换行符后的字节偏移量。
+- rollout 检查点身份由规范路径与索引线程 ID 派生；device ID 与 inode 用于检测替换。
+- 压缩或移动到 `archived_sessions` 后以新的文件检查点重读，依靠稳定事件指纹去重，不重复计数。
+- 每个文件保存已提交换行符后的解压字节偏移量，`file_size` 始终记录磁盘物理大小；压缩文件允许偏移量大于物理大小。
+- 压缩文件按物理大小、修改时间和成功读取状态跳过重复扫描；不拿解压偏移与压缩大小比较来判断截断。重新读取时流式跳过已提交的解压字节。压缩内容替换时仍通过完整历史扫描重建派生统计。
 - 文件尾部未完成的半行留到下次刷新，不越过它保存检查点。
 - 文件截断或替换时创建新的读取代次并重新验证。
 - Token 与活动分别维护检查点，避免新增活动解析要求重放 Token 数据。
 
 ### 11.2 事件去重
 
-标准化事件使用稳定 SHA-256 指纹。Token 指纹以线程、计数分段和累计计数等稳定事实为基础，防止文件复制、父历史重写、归档移动和重复扫描造成重复统计。
+标准化事件使用稳定 SHA-256 指纹。Token 指纹以线程、计数分段和累计计数等稳定事实为基础，防止同线程的文件复制、归档移动和重复扫描造成重复统计。
+
+旧版分叉历史可能丢失父线程的 `session_meta`，把继承的累计计数记到子线程 ID 下并重写时间戳。`ForkUsageDeduplicator` 只沿首行明确的 `forked_from_id` 关系核对祖先记录：四项累计计数与计数分段必须一致，双方历史 `turn_context` 有 turn ID 时必须相同，原记录时间必须不晚于分叉时间。分叉还可能独立改写 `task_started` / `task_complete` 中的任务 ID，因此不用生命周期事件覆盖历史 turn 身份。普通 `parent_thread_id` / subagent 关系不作为复制证据；不同线程仅数值相同、分叉之后的父记录和计数回退后的新分段不会因此合并。父记录缺失时保留副本，不用 `last_token_usage` 猜测或削减首条累计值。
+
+刷新结束时，只有原事件已经成功入库且不会被本次清理删除，才在同一事务中移除已证明的副本并重算小时聚合；保留原记录的日期、模型和项目归属，保留子线程检查点中的累计基线。此步骤也修复已存在的统计库，不依赖导入顺序、重启或手动重建，不修改 Codex 原文件。核对只在内存保留白名单元数据，文件未变化时复用缓存；无需新增存储表或修改 schema 版本。
 
 事件插入使用幂等语义；只有首次成功插入的事件才更新聚合。业务事件、会话状态、线程上下文和文件偏移在同一 SQLite 事务中提交，失败时整体回滚。
 

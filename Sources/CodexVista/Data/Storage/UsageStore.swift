@@ -332,6 +332,37 @@ final class UsageStore: @unchecked Sendable {
         return total
     }
 
+    /// Repairs existing imports as well as new ones, independent of file import order.
+    /// Keep a copy until its original has actually committed. Counters/checkpoints
+    /// retain the inherited baseline so subsequent child usage remains an increment.
+    func removeCopiedUsageEvents(_ copies: [String: String]) throws {
+        guard !copies.isEmpty else { return }
+        try database.inTransaction {
+            var removed = false
+            for (copy, original) in copies where copy != original {
+                // The original must survive this reconciliation, including nested forks.
+                guard copies[original] == nil else { continue }
+                let rows = try database.query(sql: """
+                    SELECT 1 FROM usage_events WHERE fingerprint = ?
+                      AND EXISTS (SELECT 1 FROM usage_events WHERE fingerprint = ?)
+                    """, bindings: [.text(copy), .text(original)])
+                guard !rows.isEmpty else { continue }
+                try database.execute(sql: "DELETE FROM usage_events WHERE fingerprint = ?", bindings: [.text(copy)])
+                removed = true
+            }
+            guard removed else { return }
+            try database.execute(sql: "DELETE FROM hourly_usage")
+            try database.execute(sql: """
+                INSERT INTO hourly_usage(hour_start_ms, model, plan, uncached_input_tokens,
+                    cached_input_tokens, visible_output_tokens, reasoning_tokens, total_tokens)
+                SELECT observed_at_ms - observed_at_ms % 3600000, model, plan,
+                    SUM(uncached_input_tokens), SUM(cached_input_tokens), SUM(visible_output_tokens),
+                    SUM(reasoning_tokens), SUM(total_tokens)
+                FROM usage_events GROUP BY observed_at_ms - observed_at_ms % 3600000, model, plan
+                """)
+        }
+    }
+
     func usageEventCount() throws -> Int64 {
         try count(table: "usage_events")
     }
@@ -1519,11 +1550,13 @@ final class UsageStore: @unchecked Sendable {
     }
 
     private func upsertFileCheckpoint(_ checkpoint: FileCheckpoint) throws {
+        // Compressed files keep their physical size but checkpoints count decoded bytes.
+        let compressed = checkpoint.path.hasSuffix(".jsonl.zst")
         guard checkpoint.fileSize >= 0,
               checkpoint.committedOffset >= 0,
-              checkpoint.committedOffset <= checkpoint.fileSize,
               checkpoint.activityCommittedOffset >= 0,
-              checkpoint.activityCommittedOffset <= checkpoint.fileSize else {
+              compressed || (checkpoint.committedOffset <= checkpoint.fileSize
+                  && checkpoint.activityCommittedOffset <= checkpoint.fileSize) else {
             throw UsageStoreError.invalidFileCheckpoint(
                 fileSize: checkpoint.fileSize,
                 committedOffset: checkpoint.committedOffset
