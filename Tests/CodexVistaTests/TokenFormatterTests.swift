@@ -90,18 +90,18 @@ final class TokenFormatterTests: XCTestCase {
     }
 
     func testAverageTokenRateUsesActualDurationAndRequiresValidTiming() {
-        XCTAssertEqual(TokenConsumptionRate.average(totalTokens: 1_000, durationMilliseconds: 250), 4_000)
-        XCTAssertEqual(TokenConsumptionRate.average(totalTokens: 0, durationMilliseconds: 1_000), 0)
-        XCTAssertNil(TokenConsumptionRate.average(totalTokens: 100, durationMilliseconds: 0))
-        XCTAssertNil(TokenConsumptionRate.average(totalTokens: 100, durationMilliseconds: -1))
-        XCTAssertNil(TokenConsumptionRate.average(totalTokens: -1, durationMilliseconds: 1_000))
+        XCTAssertEqual(OutputTokenRate.average(outputTokens: 1_000, durationMilliseconds: 250), 4_000)
+        XCTAssertEqual(OutputTokenRate.average(outputTokens: 0, durationMilliseconds: 1_000), 0)
+        XCTAssertNil(OutputTokenRate.average(outputTokens: 100, durationMilliseconds: 0))
+        XCTAssertNil(OutputTokenRate.average(outputTokens: 100, durationMilliseconds: -1))
+        XCTAssertNil(OutputTokenRate.average(outputTokens: -1, durationMilliseconds: 1_000))
         XCTAssertEqual(TokenFormatter.rateWithUnit(1_250), "1.2K Token/s")
         XCTAssertEqual(TokenFormatter.rateWithUnit(nil), "—")
         XCTAssertEqual(TokenFormatter.rateWithUnit(.infinity), "—")
         XCTAssertNil(ProjectConversationUsage(
             shortThreadID: "legacy", displayTitle: nil, tokens: 100,
             lastMessageAtMilliseconds: nil, unattributedTokens: 100
-        ).averageTokensPerSecond)
+        ).averageOutputTokensPerSecond)
     }
 
     func testTokenCompositionDistinguishesMissingDataFromZeroUsage() {

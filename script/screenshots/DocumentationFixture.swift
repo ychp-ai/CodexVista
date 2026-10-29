@@ -207,7 +207,7 @@ enum DocumentationFixture {
                           remaining: 0.68, segment: 0, tokens: 1_200_000)
                 ]
             ),
-            tokenConsumptionRate: .init(totalTokens: 75_000, durationMilliseconds: 60_000, measuredAt: now),
+            outputTokenRate: .init(outputTokens: 3_000, durationMilliseconds: 60_000, measuredAt: now),
             models: [], dailyUsage: daily,
             activityRankings: .init(today: activity, sevenDays: activity, thirtyDays: activity, allTime: activity),
             workspaceUsage: .init(today: workspaceRanking, sevenDays: workspaceRanking,

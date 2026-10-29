@@ -79,9 +79,9 @@ struct ProjectConversationHoverCard: View {
             }
 
             HStack {
-                Text("平均速率")
+                Text("输出速率")
                 Spacer()
-                Text(TokenFormatter.rateWithUnit(conversation.averageTokensPerSecond))
+                Text(TokenFormatter.rateWithUnit(conversation.averageOutputTokensPerSecond))
                     .monospacedDigit()
             }
             .font(.system(size: 10.5, weight: .medium))

@@ -503,7 +503,7 @@ struct TodayTaskDetailView: View {
                 value: TokenFormatter.compact(task.conversation.tokens),
                 icon: "number.square.fill",
                 tint: CodexVistaTheme.dashboardAccent,
-                tokenRate: task.conversation.averageTokensPerSecond.map(TokenFormatter.rate) ?? "—"
+                tokenRate: task.conversation.averageOutputTokensPerSecond.map(TokenFormatter.rate) ?? "—"
             )
             metricCard(
                 "耗时",
@@ -554,7 +554,7 @@ struct TodayTaskDetailView: View {
             Spacer(minLength: 12)
             if let tokenRate {
                 VStack(alignment: .trailing, spacing: 3) {
-                    Text("平均速率")
+                    Text("输出速率")
                         .font(.system(size: 10, weight: .medium))
                         .foregroundStyle(CodexVistaTheme.dashboardMutedText)
                     HStack(alignment: .firstTextBaseline, spacing: 4) {

@@ -70,14 +70,13 @@ struct ProjectUsagePanel: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Label("项目用量排行", systemImage: "chart.bar.fill")
-                    .font(.system(size: 13, weight: .semibold))
-                Spacer(minLength: 12)
-                headerMetadata
-            }
+        HStack(spacing: 12) {
+            Label("项目用量排行", systemImage: "chart.bar.fill")
+                .font(.system(size: 13, weight: .semibold))
+                .fixedSize()
             projectSearchField
+            Spacer(minLength: 12)
+            headerMetadata
         }
         .padding(12)
     }

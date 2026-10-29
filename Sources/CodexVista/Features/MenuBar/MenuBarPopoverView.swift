@@ -66,11 +66,11 @@ enum MenuBarQuotaTimingText {
     }
 }
 
-enum MenuBarTokenRate {
-    static func latest(for state: DashboardLoadState) -> TokenConsumptionRate? {
+enum MenuBarOutputTokenRate {
+    static func latest(for state: DashboardLoadState) -> OutputTokenRate? {
         switch state {
         case .loaded(let snapshot, _), .stale(let snapshot, _, _):
-            guard let rate = snapshot.tokenConsumptionRate, rate.tokensPerSecond != nil else { return nil }
+            guard let rate = snapshot.outputTokenRate, rate.tokensPerSecond != nil else { return nil }
             return rate
         case .loading, .empty, .failed, .unsupported:
             return nil
@@ -473,9 +473,9 @@ struct MenuBarPopoverView: View {
     }
 
     private var tokenRateSummary: some View {
-        let rate = MenuBarTokenRate.latest(for: store.state)
+        let rate = MenuBarOutputTokenRate.latest(for: store.state)
         return VStack(alignment: .trailing, spacing: 4) {
-            Text("最后一次速率")
+            Text("最近输出速率")
                 .font(.caption)
                 .foregroundStyle(CodexVistaTheme.dashboardMutedText)
 

@@ -6,18 +6,18 @@ import XCTest
 
 @MainActor
 final class DashboardStoreTests: XCTestCase {
-    func testMenuBarTokenRateKeepsLastCompletedReplyEvenWhenRefreshIsStale() {
-        let rate = TokenConsumptionRate(totalTokens: 600, durationMilliseconds: 30_000,
+    func testMenuBarOutputTokenRateKeepsLastCompletedReplyEvenWhenRefreshIsStale() {
+        let rate = OutputTokenRate(outputTokens: 600, durationMilliseconds: 30_000,
                                         measuredAt: Date(timeIntervalSince1970: 0))
         let snapshot = DashboardSnapshot(
             planName: "Plus", updatedText: "刚刚刷新", periods: [], quotas: [],
-            tokenConsumptionRate: rate, models: [], dailyUsage: []
+            outputTokenRate: rate, models: [], dailyUsage: []
         )
-        XCTAssertEqual(MenuBarTokenRate.latest(for: .loaded(snapshot, .fixture)), rate)
-        XCTAssertEqual(MenuBarTokenRate.latest(for: .stale(snapshot, .fixture, "失败")), rate)
-        XCTAssertNil(MenuBarTokenRate.latest(for: .loaded(.fixture(todayTokens: 42), .fixture)))
-        XCTAssertNil(MenuBarTokenRate.latest(for: .loading))
-        XCTAssertNil(MenuBarTokenRate.latest(for: .failed("失败")))
+        XCTAssertEqual(MenuBarOutputTokenRate.latest(for: .loaded(snapshot, .fixture)), rate)
+        XCTAssertEqual(MenuBarOutputTokenRate.latest(for: .stale(snapshot, .fixture, "失败")), rate)
+        XCTAssertNil(MenuBarOutputTokenRate.latest(for: .loaded(.fixture(todayTokens: 42), .fixture)))
+        XCTAssertNil(MenuBarOutputTokenRate.latest(for: .loading))
+        XCTAssertNil(MenuBarOutputTokenRate.latest(for: .failed("失败")))
     }
 
     func testMenuBarRefreshUpdatesEveryFiveSecondsAndStopsWhenCancelled() async {

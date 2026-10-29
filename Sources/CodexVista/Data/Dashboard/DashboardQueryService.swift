@@ -286,7 +286,7 @@ final class DashboardQueryService: @unchecked Sendable {
             subscriptionCycle: subscriptionCycle,
             quotas: quotaResult.quotas,
             quotaHistory: .make(events: quotaHistory, usageRows: trendRows, now: now),
-            tokenConsumptionRate: try latestReplyTokenRate(
+            outputTokenRate: try latestReplyOutputRate(
                 from: historicalRows,
                 lifecycleFacts: turnLifecycleFacts,
                 replyAttribution: replyAttribution,
@@ -1072,12 +1072,12 @@ final class DashboardQueryService: @unchecked Sendable {
         )
     }
 
-    private func latestReplyTokenRate(
+    private func latestReplyOutputRate(
         from rows: [StoredUsageQueryRow],
         lifecycleFacts: [ThreadTurnKey: TurnLifecycleFact],
         replyAttribution: ThreadReplyAttributionResolver,
         threadTitlesByThreadID: [String: String]
-    ) throws -> TokenConsumptionRate? {
+    ) throws -> OutputTokenRate? {
         var totals: [ThreadTurnKey: Int64] = [:]
         for row in rows {
             guard let turnID = row.turnID, !turnID.isEmpty else { continue }
@@ -1090,18 +1090,21 @@ final class DashboardQueryService: @unchecked Sendable {
                   ProjectConversationUsage.isIncludedInTaskMetrics(
                     displayTitle: threadTitlesByThreadID[key.threadID]
                   ) else { continue }
+            let outputTokens = try checkedAdd(
+                row.visibleOutputTokens, row.reasoningTokens, context: "outputTokenRate.output"
+            )
             totals[key] = try checkedAdd(
-                totals[key, default: 0], row.totalTokens, context: "tokenConsumptionRate.total"
+                totals[key, default: 0], outputTokens, context: "outputTokenRate.total"
             )
         }
-        let candidates = totals.compactMap { key, total -> (ThreadTurnKey, TokenConsumptionRate)? in
+        let candidates = totals.compactMap { key, total -> (ThreadTurnKey, OutputTokenRate)? in
             guard let fact = lifecycleFacts[key], let endedAt = fact.endedAtMilliseconds else { return nil }
             let duration = aiWorktimeMilliseconds(
                 from: fact, fromMilliseconds: nil, toMilliseconds: endedAt
             )
             guard duration > 0 else { return nil }
-            return (key, TokenConsumptionRate(
-                totalTokens: total, durationMilliseconds: duration,
+            return (key, OutputTokenRate(
+                outputTokens: total, durationMilliseconds: duration,
                 measuredAt: Date(timeIntervalSince1970: Double(endedAt) / 1_000)
             ))
         }

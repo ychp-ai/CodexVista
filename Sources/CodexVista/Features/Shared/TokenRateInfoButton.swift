@@ -8,17 +8,17 @@ enum TokenRateExplanation {
 
     var title: String {
         switch self {
-        case .latestReply: "最后一次速率"
-        case .reply: "回复平均速率"
-        case .task, .todayTask: "任务平均速率"
+        case .latestReply: "最近输出速率"
+        case .reply: "回复输出速率"
+        case .task, .todayTask: "任务输出速率"
         }
     }
 
     var formula: String {
         switch self {
-        case .latestReply, .reply: "回复 Token 总量 ÷ 回复累计耗时"
-        case .task: "当前范围内 Token 总量 ÷ 回复累计耗时"
-        case .todayTask: "今日 Token 总量 ÷ 今日回复累计耗时"
+        case .latestReply, .reply: "回复输出 Token ÷ 回复累计耗时"
+        case .task: "当前范围内输出 Token ÷ 回复累计耗时"
+        case .todayTask: "今日输出 Token ÷ 今日回复累计耗时"
         }
     }
 
@@ -29,7 +29,7 @@ enum TokenRateExplanation {
         case .reply:
             "按这次回复在当前统计范围内的用量和耗时计算。进行中的回复随刷新更新，缺少有效耗时显示“—”。"
         case .task, .todayTask:
-            "先汇总回复的 Token 和耗时，再相除。进行中的回复随刷新更新；缺少完整耗时或存在未归属回复的 Token 时显示“—”。"
+            "先汇总回复的输出 Token 和耗时，再相除。进行中的回复随刷新更新；缺少完整耗时或存在未归属回复的 Token 时显示“—”。"
         }
     }
 }
@@ -50,7 +50,7 @@ struct TokenRateInfoButton: View {
         }
         .buttonStyle(.plain)
         .fixedSize()
-        .help("查看速率说明")
+        .help("查看输出速率说明")
         .accessibilityLabel("\(explanation.title)说明")
         .popover(isPresented: $isPresented, arrowEdge: .bottom) {
             TokenRateExplanationView(explanation: explanation)
@@ -70,7 +70,8 @@ struct TokenRateExplanationView: View {
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(CodexVistaTheme.dashboardAccent)
             Text(explanation.detail)
-            Text("单位为 Token/s，包含未缓存输入、缓存输入、可见输出和推理输出；子 Agent 用量归并到主回复，耗时不重复计算。")
+            Text("单位为 Token/s，输出 Token 为可见输出与推理输出之和，不含输入和缓存输入。回复耗时包含等待与工具执行，因此表示整轮回复的平均输出速率，并非纯生成速度。")
+            Text("子 Agent 输出归并到主回复，耗时不重复计算。")
             if case .latestReply(let completedAt) = explanation {
                 Text(completedAt.map {
                     "最近完成于 \($0.formatted(date: .abbreviated, time: .standard))"

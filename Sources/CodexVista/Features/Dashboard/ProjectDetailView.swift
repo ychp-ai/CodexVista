@@ -648,7 +648,7 @@ struct ProjectDetailView: View {
 
                     Spacer(minLength: 4)
 
-                    Text("均速 \(TokenFormatter.rateWithUnit(conversation.averageTokensPerSecond))")
+                    Text("输出速率 \(TokenFormatter.rateWithUnit(conversation.averageOutputTokensPerSecond))")
                         .font(.system(size: 9, weight: .medium, design: .rounded))
                         .foregroundStyle(CodexVistaTheme.dashboardMutedText)
                         .monospacedDigit()
@@ -706,7 +706,7 @@ struct ProjectDetailView: View {
                 + "\(conversation.replies.count) 次回复，"
                 + "\(range.rawValue)耗时 "
                 + TokenFormatter.worktime(conversation.aiWorktimeMilliseconds)
-                + "，平均速率 \(TokenFormatter.rateWithUnit(conversation.averageTokensPerSecond))"
+                + "，输出速率 \(TokenFormatter.rateWithUnit(conversation.averageOutputTokensPerSecond))"
         )
         .contentShape(Rectangle())
         .onHover { isHovering in
@@ -1121,7 +1121,7 @@ struct ProjectReplyDetailList: View {
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundStyle(CodexVistaTheme.dashboardPrimaryText)
                 HStack(spacing: 0) {
-                    Text("均速 \(TokenFormatter.rateWithUnit(row.reply.averageTokensPerSecond))")
+                    Text("输出速率 \(TokenFormatter.rateWithUnit(row.reply.averageOutputTokensPerSecond))")
                     TokenRateInfoButton(explanation: .reply)
                 }
                 Label(ProjectUsageDateFormatter.duration(row.reply.aiWorktimeMilliseconds), systemImage: "stopwatch")
@@ -1148,7 +1148,7 @@ struct ProjectReplyDetailList: View {
             "\(row.conversationTitle)，状态 \(status.title)，"
                 + "\(row.reply.totalTokens.formatted()) Token，耗时 "
                 + TokenFormatter.worktime(row.reply.aiWorktimeMilliseconds)
-                + "，平均速率 \(TokenFormatter.rateWithUnit(row.reply.averageTokensPerSecond))"
+                + "，输出速率 \(TokenFormatter.rateWithUnit(row.reply.averageOutputTokensPerSecond))"
         )
         .contentShape(Rectangle())
         .onHover { isHovering in
@@ -1235,9 +1235,9 @@ struct ProjectReplyHoverCard: View {
             }
 
             HStack {
-                Text("平均速率")
+                Text("输出速率")
                 Spacer()
-                Text(TokenFormatter.rateWithUnit(row.reply.averageTokensPerSecond))
+                Text(TokenFormatter.rateWithUnit(row.reply.averageOutputTokensPerSecond))
                     .monospacedDigit()
             }
             .font(.system(size: 10.5, weight: .medium))

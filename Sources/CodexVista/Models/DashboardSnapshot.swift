@@ -1,17 +1,17 @@
 import Foundation
 
-struct TokenConsumptionRate: Equatable, Sendable {
-    let totalTokens: Int64
+struct OutputTokenRate: Equatable, Sendable {
+    let outputTokens: Int64
     let durationMilliseconds: Int64
     let measuredAt: Date
 
     var tokensPerSecond: Double? {
-        Self.average(totalTokens: totalTokens, durationMilliseconds: durationMilliseconds)
+        Self.average(outputTokens: outputTokens, durationMilliseconds: durationMilliseconds)
     }
 
-    static func average(totalTokens: Int64, durationMilliseconds: Int64) -> Double? {
-        guard totalTokens >= 0, durationMilliseconds > 0 else { return nil }
-        return Double(totalTokens) / (Double(durationMilliseconds) / 1_000)
+    static func average(outputTokens: Int64, durationMilliseconds: Int64) -> Double? {
+        guard outputTokens >= 0, durationMilliseconds > 0 else { return nil }
+        return Double(outputTokens) / (Double(durationMilliseconds) / 1_000)
     }
 }
 
@@ -22,7 +22,7 @@ struct DashboardSnapshot: Sendable {
     let subscriptionCycle: SubscriptionCycle?
     let quotas: [QuotaSnapshot]
     let quotaHistory: QuotaHistorySnapshot
-    let tokenConsumptionRate: TokenConsumptionRate?
+    let outputTokenRate: OutputTokenRate?
     let models: [ModelUsage]
     let dailyUsage: [DailyUsage]
     let subscriptionCycleUsage: [DailyUsage]
@@ -38,7 +38,7 @@ struct DashboardSnapshot: Sendable {
         subscriptionCycle: SubscriptionCycle? = nil,
         quotas: [QuotaSnapshot],
         quotaHistory: QuotaHistorySnapshot = .empty,
-        tokenConsumptionRate: TokenConsumptionRate? = nil,
+        outputTokenRate: OutputTokenRate? = nil,
         models: [ModelUsage],
         dailyUsage: [DailyUsage],
         subscriptionCycleUsage: [DailyUsage] = [],
@@ -53,7 +53,7 @@ struct DashboardSnapshot: Sendable {
         self.subscriptionCycle = subscriptionCycle
         self.quotas = quotas
         self.quotaHistory = quotaHistory
-        self.tokenConsumptionRate = tokenConsumptionRate
+        self.outputTokenRate = outputTokenRate
         self.models = models
         self.dailyUsage = dailyUsage
         self.subscriptionCycleUsage = subscriptionCycleUsage
@@ -328,12 +328,18 @@ struct ProjectConversationUsage: Identifiable, Equatable, Sendable {
         }
     }
 
-    var averageTokensPerSecond: Double? {
+    var averageOutputTokensPerSecond: Double? {
         guard unattributedTokens == 0,
               replies.allSatisfy({ $0.totalTokens == 0 || $0.aiWorktimeMilliseconds > 0 })
         else { return nil }
-        return TokenConsumptionRate.average(
-            totalTokens: Int64(tokens), durationMilliseconds: aiWorktimeMilliseconds
+        var outputTokens: Int64 = 0
+        for reply in replies {
+            let (sum, overflow) = outputTokens.addingReportingOverflow(reply.outputTokens)
+            guard !overflow else { return nil }
+            outputTokens = sum
+        }
+        return OutputTokenRate.average(
+            outputTokens: outputTokens, durationMilliseconds: aiWorktimeMilliseconds
         )
     }
 
@@ -418,9 +424,14 @@ struct ProjectReplyUsage: Identifiable, Equatable, Sendable {
         return max(0, endedAtMilliseconds - startedAtMilliseconds)
     }
 
-    var averageTokensPerSecond: Double? {
-        TokenConsumptionRate.average(
-            totalTokens: Int64(totalTokens), durationMilliseconds: aiWorktimeMilliseconds
+    /// These stored categories are disjoint; together they include reasoning exactly once.
+    var outputTokens: Int64 {
+        Int64(visibleOutputTokens) + Int64(reasoningTokens)
+    }
+
+    var averageOutputTokensPerSecond: Double? {
+        OutputTokenRate.average(
+            outputTokens: outputTokens, durationMilliseconds: aiWorktimeMilliseconds
         )
     }
 
