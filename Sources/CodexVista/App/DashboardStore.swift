@@ -205,7 +205,8 @@ actor LiveDashboardDataClient: DashboardDataClient {
             firstSubscriptionDate: firstSubscriptionDate(),
             threadTitlesByThreadID: threadMetadata.displayTitlesByThreadID,
             parentThreadIDsByChildThreadID: threadMetadata.parentThreadIDsByChildThreadID,
-            childThreadRelationsByChildThreadID: threadMetadata.childThreadRelationsByChildThreadID
+            childThreadRelationsByChildThreadID: threadMetadata.childThreadRelationsByChildThreadID,
+            workspaceConfigurationIDsByThreadID: threadMetadata.workspaceConfigurationIDsByThreadID
         )
         let snapshot = storedSnapshot
         let facts = try store.sourceFacts()

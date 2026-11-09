@@ -24,7 +24,8 @@ final class DashboardQueryService: @unchecked Sendable {
         firstSubscriptionDate: Date? = nil,
         threadTitlesByThreadID: [String: String] = [:],
         parentThreadIDsByChildThreadID: [String: String] = [:],
-        childThreadRelationsByChildThreadID: [String: CodexChildThreadRelation] = [:]
+        childThreadRelationsByChildThreadID: [String: CodexChildThreadRelation] = [:],
+        workspaceConfigurationIDsByThreadID: [String: String] = [:]
     ) throws -> DashboardSnapshot {
         let todayStart = calendar.startOfDay(for: now)
         let resolvedUsageCalendar = usageCalendar ?? calendar
@@ -79,6 +80,12 @@ final class DashboardQueryService: @unchecked Sendable {
             resolvedParentThreadIDs[childThreadID] = relation.parentThreadID
             childCreatedAtMilliseconds[childThreadID] = relation.childCreatedAtMilliseconds
         }
+        let assignedWorkspaces = assignedWorkspaces(
+            threadIDs: Set(historicalRows.map(\.threadID)),
+            configurationIDsByThreadID: workspaceConfigurationIDsByThreadID,
+            configurations: workspaceConfigurations,
+            parentThreadIDsByChildThreadID: resolvedParentThreadIDs
+        )
         let replyAttribution = ThreadReplyAttributionResolver(
             parentThreadIDsByChildThreadID: resolvedParentThreadIDs,
             childCreatedAtMillisecondsByThreadID: childCreatedAtMilliseconds,
@@ -184,6 +191,7 @@ final class DashboardQueryService: @unchecked Sendable {
                 worktimeToMilliseconds: nowMilliseconds,
                 workspaceAliases: workspaceAliases,
                 workspaceConfigurations: workspaceConfigurations,
+                assignedWorkspaces: assignedWorkspaces,
                 activityRows: allActivityRows.filter {
                     $0.observedAtMilliseconds >= milliseconds(for: todayStart)
                 }
@@ -202,6 +210,7 @@ final class DashboardQueryService: @unchecked Sendable {
                 worktimeToMilliseconds: nowMilliseconds,
                 workspaceAliases: workspaceAliases,
                 workspaceConfigurations: workspaceConfigurations,
+                assignedWorkspaces: assignedWorkspaces,
                 activityRows: allActivityRows.filter {
                     $0.observedAtMilliseconds >= milliseconds(for: sevenDayStart)
                 }
@@ -220,6 +229,7 @@ final class DashboardQueryService: @unchecked Sendable {
                 worktimeToMilliseconds: nowMilliseconds,
                 workspaceAliases: workspaceAliases,
                 workspaceConfigurations: workspaceConfigurations,
+                assignedWorkspaces: assignedWorkspaces,
                 activityRows: allActivityRows.filter {
                     $0.observedAtMilliseconds >= milliseconds(for: thirtyDayStart)
                 }
@@ -238,6 +248,7 @@ final class DashboardQueryService: @unchecked Sendable {
                 worktimeToMilliseconds: nowMilliseconds,
                 workspaceAliases: workspaceAliases,
                 workspaceConfigurations: workspaceConfigurations,
+                assignedWorkspaces: assignedWorkspaces,
                 activityRows: allActivityRows
             )
         )
@@ -263,6 +274,7 @@ final class DashboardQueryService: @unchecked Sendable {
                 worktimeToMilliseconds: nowMilliseconds,
                 workspaceAliases: workspaceAliases,
                 workspaceConfigurations: workspaceConfigurations,
+                assignedWorkspaces: assignedWorkspaces,
                 activityRows: []
             )
             worktimeByPeriodID["subscriptionCycle"] = subscriptionRanking.totalAIWorktimeMilliseconds
@@ -386,6 +398,7 @@ final class DashboardQueryService: @unchecked Sendable {
         worktimeToMilliseconds: Int64,
         workspaceAliases: [WorkspaceUsageKey: WorkspaceUsageKey],
         workspaceConfigurations: [String: StoredWorkspaceConfiguration],
+        assignedWorkspaces: [String: WorkspaceUsageKey],
         activityRows: [StoredActivityEvent]
     ) throws -> WorkspaceUsageRanking {
         // A separate projection preserves each agent's own replies and lifecycle.
@@ -418,6 +431,7 @@ final class DashboardQueryService: @unchecked Sendable {
                     worktimeToMilliseconds: worktimeToMilliseconds,
                     workspaceAliases: workspaceAliases,
                     workspaceConfigurations: workspaceConfigurations,
+                    assignedWorkspaces: assignedWorkspaces,
                     activityRows: activityRows
                 )
                 let rootByChildID = childRows.reduce(into: [String: String]()) { result, row in
@@ -469,7 +483,8 @@ final class DashboardQueryService: @unchecked Sendable {
             else { continue }
 
             let rawWorkspaceKey = WorkspaceUsageKey(identity: row.workspace)
-            let workspaceKey = workspaceAliases[rawWorkspaceKey] ?? rawWorkspaceKey
+            let workspaceKey = assignedWorkspaces[row.threadID]
+                ?? workspaceAliases[rawWorkspaceKey] ?? rawWorkspaceKey
             let sourceKey = ThreadTurnKey(threadID: row.threadID, turnID: turnID)
             let replyKey = resolvedReplyKey(
                 threadID: row.threadID,
@@ -510,7 +525,8 @@ final class DashboardQueryService: @unchecked Sendable {
         var overall: Int64 = 0
         for row in rows {
             let rawWorkspaceKey = WorkspaceUsageKey(identity: row.workspace)
-            let workspaceKey = workspaceAliases[rawWorkspaceKey] ?? rawWorkspaceKey
+            let workspaceKey = assignedWorkspaces[row.threadID]
+                ?? workspaceAliases[rawWorkspaceKey] ?? rawWorkspaceKey
             let pathNode = ProjectUsageIdentityNode(
                 name: row.project.name,
                 identity: "path:\(row.project.id)"
@@ -592,6 +608,9 @@ final class DashboardQueryService: @unchecked Sendable {
                         totalTokens: 0,
                         lastUsageAtMilliseconds: row.observedAtMilliseconds
                     )
+                if row.threadID != replyKey.threadID {
+                    reply.subagentThreadIDs.insert(row.threadID)
+                }
                 if !row.model.isEmpty {
                     reply.modelCalls.insert(ProjectReplyModelCallKey(
                         threadID: row.threadID,
@@ -648,7 +667,8 @@ final class DashboardQueryService: @unchecked Sendable {
 
         for row in trendRows {
             let rawWorkspaceKey = WorkspaceUsageKey(identity: row.workspace)
-            let workspaceKey = workspaceAliases[rawWorkspaceKey] ?? rawWorkspaceKey
+            let workspaceKey = assignedWorkspaces[row.threadID]
+                ?? workspaceAliases[rawWorkspaceKey] ?? rawWorkspaceKey
             let observedDate = Date(
                 timeIntervalSince1970: TimeInterval(row.observedAtMilliseconds) / 1_000
             )
@@ -717,6 +737,7 @@ final class DashboardQueryService: @unchecked Sendable {
                         lastUsageAtMilliseconds: usage.lastUsageAtMilliseconds,
                         skillCalls: activity?.skills ?? [],
                         toolCalls: activity?.tools ?? [],
+                        subagentCount: usage.subagentThreadIDs.count,
                         traceThreadID: threadID
                     )
                 }.sorted { left, right in
@@ -759,6 +780,30 @@ final class DashboardQueryService: @unchecked Sendable {
             workspaceCount: entries.count,
             projectCount: entries.reduce(0) { $0 + $1.directories.count }
         )
+    }
+
+    private func assignedWorkspaces(
+        threadIDs: Set<String>,
+        configurationIDsByThreadID: [String: String],
+        configurations: [String: StoredWorkspaceConfiguration],
+        parentThreadIDsByChildThreadID: [String: String]
+    ) -> [String: WorkspaceUsageKey] {
+        var result: [String: WorkspaceUsageKey] = [:]
+        for threadID in threadIDs {
+            var current = threadID
+            var visited: Set<String> = []
+            while visited.insert(current).inserted {
+                if let configurationID = configurationIDsByThreadID[current] {
+                    if let configuration = configurations[configurationID] {
+                        result[threadID] = WorkspaceUsageKey(identity: configuration.identity)
+                    }
+                    break
+                }
+                guard let parent = parentThreadIDsByChildThreadID[current] else { break }
+                current = parent
+            }
+        }
+        return result
     }
 
     private func makeWorkspaceUsageAliases(
@@ -1620,6 +1665,7 @@ private struct ProjectConversationUsageAccumulator {
 }
 
 private struct ProjectReplyUsageAccumulator {
+    var subagentThreadIDs: Set<String> = []
     var modelCalls: Set<ProjectReplyModelCallKey>
     var modelUsage: [String: UsageAggregate]
     var uncachedInputTokens: Int64

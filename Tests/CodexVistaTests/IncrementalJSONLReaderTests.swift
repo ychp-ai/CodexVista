@@ -178,6 +178,50 @@ final class IncrementalJSONLReaderTests: XCTestCase {
         XCTAssertEqual(metadata.first?.rootPaths, ["/repo/first", "/repo/second"])
     }
 
+    func testDashboardMetadataUsesOnlyCurrentLocalTaskProjectAssignments() throws {
+        let root = try temporaryDirectory()
+        let current = root.appending(path: ".codex-global-state.json")
+        let backup = current.appendingPathExtension("bak")
+        try write("""
+            {
+              "local-projects": {
+                "agent": {"name": "Agent", "rootPaths": ["/synthetic/shared"]}
+              },
+              "thread-project-assignments": {
+                "local": {"projectKind": "local", "projectId": "agent"},
+                "legacy": {"projectKind": "local", "projectId": "agent"},
+                "remote-host": {"projectKind": "local", "projectId": "agent"},
+                "projectless": {"projectKind": "local", "projectId": "agent"},
+                "unknown": {"projectKind": "local", "projectId": "missing"},
+                "cloud": {"projectKind": "cloud", "projectId": "agent"},
+                "missing-id": {"projectKind": "local"},
+                "malformed": 123,
+                "": {"projectKind": "local", "projectId": "agent"}
+              },
+              "thread-project-membership-host-ids": {"local": "local", "remote-host": "remote"},
+              "projectless-thread-ids": ["projectless"]
+            }
+            """, to: current)
+        try FileManager.default.copyItem(at: current, to: backup)
+        let configurationID = try XCTUnwrap(
+            CodexWorkspaceMetadataReader().read(rootURL: root).first?.configurationID
+        )
+        let discovery = CodexSourceDiscovery()
+        XCTAssertEqual(
+            discovery.threadDashboardMetadata(rootURL: root).workspaceConfigurationIDsByThreadID,
+            ["local": configurationID, "legacy": configurationID]
+        )
+
+        // Removing assignments, or losing the current file, must not restore stale membership.
+        try write(#"{"local-projects":{"agent":{"name":"Agent","rootPaths":["/synthetic/shared"]}}}"#,
+                  to: current)
+        XCTAssertTrue(discovery.threadDashboardMetadata(rootURL: root).workspaceConfigurationIDsByThreadID.isEmpty)
+        try write("{", to: current)
+        XCTAssertTrue(discovery.threadDashboardMetadata(rootURL: root).workspaceConfigurationIDsByThreadID.isEmpty)
+        try FileManager.default.removeItem(at: current)
+        XCTAssertTrue(discovery.threadDashboardMetadata(rootURL: root).workspaceConfigurationIDsByThreadID.isEmpty)
+    }
+
     func testDiscoveryRecoversArchivedWorkspaceNamesAndPrefersNewestMetadata() throws {
         let root = try temporaryDirectory()
         let historicalState = root.appending(path: "..codex-global-state.json.tmp-older")

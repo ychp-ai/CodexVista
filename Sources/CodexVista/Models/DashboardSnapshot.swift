@@ -404,6 +404,9 @@ struct ProjectReplyUsage: Identifiable, Equatable, Sendable {
     let skillCalls: [ProjectReplyActivityCall]
     let toolCalls: [ProjectReplyActivityCall]
 
+    /// Distinct visible child threads contributing usage to this reply, including nested agents.
+    var subagentCount: Int = 0
+
     /// In-memory source identity for on-demand trace loading; never persisted separately.
     var traceThreadID: String? = nil
 

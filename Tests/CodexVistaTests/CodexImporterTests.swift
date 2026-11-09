@@ -3,6 +3,73 @@ import XCTest
 @testable import CodexVista
 
 final class CodexImporterTests: XCTestCase {
+    func testTaskProjectAssignmentsSeparateSharedDirectoryUsageWithoutReimporting() async throws {
+        let fixture = try CodexFixture.make(events: [
+            .sessionCLI, .turn(model: "gpt-synthetic"),
+            .token(input: 100, cached: 40, output: 20, reasoning: 5, plan: "plus")
+        ])
+        let root = "/synthetic/guide-ai-assistant"
+        let rollout = try String(contentsOf: fixture.rolloutURL, encoding: .utf8)
+            .replacingOccurrences(of: "/synthetic/CodexVistaFixture", with: root)
+        try Data(rollout.utf8).write(to: fixture.rolloutURL)
+        try Data(rollout.replacingOccurrences(of: CodexFixture.threadID, with: "assistant-thread").utf8)
+            .write(to: fixture.rolloutURL.deletingLastPathComponent().appending(path: "assistant.jsonl"))
+        let projects: [String: Any] = [
+            "assistant": ["name": "guide-ai-assistant", "rootPaths": [root]],
+            "agent": ["name": "guide-agent", "rootPaths": [root, "/synthetic/guide-promotion"]]
+        ]
+        let stateURL = fixture.codexRoot.appending(path: ".codex-global-state.json")
+        try JSONSerialization.data(withJSONObject: ["local-projects": projects]).write(to: stateURL)
+        let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-07-14T01:03:00Z"))
+        let client = try LiveDashboardDataClient(
+            codexRootURL: fixture.codexRoot, databaseURL: fixture.databaseURL,
+            now: { now }, calendar: CodexUsageCalendar.utc
+        )
+        guard case let .loaded(initial, _) = try await client.backfillHistory() else {
+            return XCTFail("Expected imported dashboard")
+        }
+        XCTAssertEqual(initial.workspaceUsage.allTime.entries.map(\.name), ["guide-ai-assistant"])
+        let store = try UsageStore(databaseURL: fixture.databaseURL)
+        let originalRows = try store.usageEvents()
+        let assignments: [String: Any] = [
+            CodexFixture.threadID: ["projectKind": "local", "projectId": "agent"],
+            "assistant-thread": ["projectKind": "local", "projectId": "assistant"]
+        ]
+        try JSONSerialization.data(withJSONObject: [
+            "local-projects": projects, "thread-project-assignments": assignments
+        ]).write(to: stateURL)
+
+        guard case let .loaded(corrected, _) = try await client.loadCached() else {
+            return XCTFail("Expected corrected cached dashboard")
+        }
+        for range in [ActivityRange.today, .sevenDays, .thirtyDays, .allTime] {
+            let ranking = corrected.workspaceUsage.ranking(for: range)
+            XCTAssertEqual(Set(ranking.entries.map(\.name)), ["guide-agent", "guide-ai-assistant"])
+            XCTAssertEqual(ranking.entries.map(\.tokens), [120, 120])
+            XCTAssertEqual(ranking.totalTokens, 240)
+            let agent = try XCTUnwrap(ranking.entries.first { $0.name == "guide-agent" })
+            XCTAssertEqual(agent.conversations.map(\.id), [ThreadDisplayIdentifier.make(from: CodexFixture.threadID)])
+            XCTAssertEqual(agent.configuredDirectories.map(\.name), ["guide-ai-assistant", "guide-promotion"])
+            XCTAssertEqual(agent.dailyUsage.reduce(0) { $0 + $1.tokens }, 120)
+        }
+
+        // Moving a task must update cached history; stale backup assignments must not restore it.
+        try FileManager.default.copyItem(at: stateURL, to: stateURL.appendingPathExtension("bak"))
+        try JSONSerialization.data(withJSONObject: [
+            "local-projects": projects,
+            "thread-project-assignments": [
+                CodexFixture.threadID: ["projectKind": "local", "projectId": "assistant"]
+            ]
+        ]).write(to: stateURL)
+        guard case let .loaded(moved, _) = try await client.loadCached() else {
+            return XCTFail("Expected updated cached assignment")
+        }
+        XCTAssertEqual(moved.workspaceUsage.allTime.entries.map(\.name), ["guide-ai-assistant"])
+        XCTAssertEqual(moved.workspaceUsage.allTime.totalTokens, 240)
+        XCTAssertEqual(try store.usageEvents().map(\.workspace), originalRows.map(\.workspace))
+        XCTAssertEqual(try store.usageEvents().map(\.fingerprint), originalRows.map(\.fingerprint))
+    }
+
     func testForkWithoutParentMetadataDeduplicatesTruncatedPrefixAndPreservesNewUsage() async throws {
         let fixture = try CodexFixture.make(events: [.sessionCLI, .turn(model: "gpt-synthetic"),
             .token(input: 100, cached: 40, output: 20, reasoning: 5, plan: "plus"),

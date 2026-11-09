@@ -60,6 +60,7 @@ struct CodexThreadDashboardMetadata: Equatable, Sendable {
     let displayTitlesByThreadID: [String: String]
     let parentThreadIDsByChildThreadID: [String: String]
     let childThreadRelationsByChildThreadID: [String: CodexChildThreadRelation]
+    let workspaceConfigurationIDsByThreadID: [String: String]
 }
 
 struct CodexChildThreadRelation: Equatable, Sendable {
@@ -165,7 +166,9 @@ struct CodexSourceDiscovery {
         return CodexThreadDashboardMetadata(
             displayTitlesByThreadID: displayTitles,
             parentThreadIDsByChildThreadID: relations.mapValues(\.parentThreadID),
-            childThreadRelationsByChildThreadID: relations
+            childThreadRelationsByChildThreadID: relations,
+            workspaceConfigurationIDsByThreadID: workspaceMetadataReader
+                .threadWorkspaceConfigurationIDs(rootURL: rootURL)
         )
     }
 
@@ -359,6 +362,32 @@ struct CodexWorkspaceMetadataReader {
         self.fileManager = fileManager
     }
 
+    func threadWorkspaceConfigurationIDs(rootURL: URL) -> [String: String] {
+        // Membership is current state: a backup can resurrect a moved or removed assignment.
+        let url = rootURL.appending(path: ".codex-global-state.json")
+        guard let data = try? Data(contentsOf: url),
+              let state = try? JSONDecoder().decode(CodexGlobalState.self, from: data) else {
+            return [:]
+        }
+        return state.threadProjectAssignments.reduce(into: [:]) { result, entry in
+            let (threadID, assignment) = entry
+            guard !threadID.isEmpty,
+                  assignment.projectKind == "local",
+                  let projectID = assignment.projectID,
+                  state.localProjects[projectID] != nil,
+                  !state.projectlessThreadIDs.contains(threadID),
+                  state.threadMembershipHostIDs[threadID].map({ $0 == "local" }) ?? true else {
+                return
+            }
+            result[threadID] = configurationID(for: projectID)
+        }
+    }
+
+    private func configurationID(for projectID: String) -> String {
+        SHA256.hash(data: Data("codex-local-project-v1|\(projectID)".utf8))
+            .map { String(format: "%02x", $0) }.joined()
+    }
+
     func read(rootURL: URL) -> [CodexWorkspaceMetadata] {
         let candidates = stateFiles(rootURL: rootURL).sorted { left, right in
             let leftIsCurrent = left.lastPathComponent == ".codex-global-state.json"
@@ -392,10 +421,8 @@ struct CodexWorkspaceMetadataReader {
                 let preferredPrevious = previous.flatMap {
                     !isCurrent && $0.updatedAtMilliseconds > updatedAt ? $0 : nil
                 }
-                let configurationID = SHA256.hash(data: Data("codex-local-project-v1|\(projectID)".utf8))
-                    .map { String(format: "%02x", $0) }.joined()
                 metadataByProjectID[projectID] = CodexWorkspaceMetadata(
-                    configurationID: configurationID,
+                    configurationID: configurationID(for: projectID),
                     name: preferredPrevious?.name ?? String(normalizedName.prefix(120)),
                     rootPaths: preferredPrevious?.rootPaths ?? project.rootPaths,
                     historicalRootPaths: historicalRoots,
@@ -435,9 +462,15 @@ struct CodexWorkspaceMetadataReader {
 
 private struct CodexGlobalState: Decodable {
     let localProjects: [String: CodexLocalProject]
+    let threadProjectAssignments: [String: CodexThreadProjectAssignment]
+    let threadMembershipHostIDs: [String: String]
+    let projectlessThreadIDs: Set<String>
 
     enum CodingKeys: String, CodingKey {
         case localProjects = "local-projects"
+        case threadProjectAssignments = "thread-project-assignments"
+        case threadMembershipHostIDs = "thread-project-membership-host-ids"
+        case projectlessThreadIDs = "projectless-thread-ids"
     }
 
     init(from decoder: Decoder) throws {
@@ -446,6 +479,31 @@ private struct CodexGlobalState: Decodable {
             [String: CodexLocalProject].self,
             forKey: .localProjects
         ) ?? [:]
+        threadProjectAssignments = (try? container.decode(
+            [String: CodexThreadProjectAssignment].self, forKey: .threadProjectAssignments
+        )) ?? [:]
+        threadMembershipHostIDs = (try? container.decode(
+            [String: String].self, forKey: .threadMembershipHostIDs
+        )) ?? [:]
+        projectlessThreadIDs = (try? container.decode(
+            Set<String>.self, forKey: .projectlessThreadIDs
+        )) ?? []
+    }
+}
+
+private struct CodexThreadProjectAssignment: Decodable {
+    let projectKind: String?
+    let projectID: String?
+
+    enum CodingKeys: String, CodingKey {
+        case projectKind
+        case projectID = "projectId"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try? decoder.container(keyedBy: CodingKeys.self)
+        projectKind = try? container?.decode(String.self, forKey: .projectKind)
+        projectID = try? container?.decode(String.self, forKey: .projectID)
     }
 }
 

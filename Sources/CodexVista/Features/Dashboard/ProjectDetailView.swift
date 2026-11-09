@@ -1127,6 +1127,8 @@ struct ProjectReplyDetailList: View {
                 Label(ProjectUsageDateFormatter.duration(row.reply.aiWorktimeMilliseconds), systemImage: "stopwatch")
                 replyActivityMetric(title: "Skill", count: row.reply.skillCallCount, icon: "sparkles", tint: CodexVistaTheme.dashboardInput)
                 replyActivityMetric(title: "工具", count: row.reply.toolCallCount, icon: "wrench.and.screwdriver.fill", tint: CodexVistaTheme.dashboardAccentSecondary)
+                replyActivityMetric(title: "Subagent", count: row.reply.subagentCount, icon: "person.2", tint: CodexVistaTheme.dashboardAccent)
+                    .help("当前统计范围内归入本回复的子 agent 数量，包含嵌套 agent，按线程去重")
             }
             .font(.system(size: 11, weight: .medium))
             .foregroundStyle(CodexVistaTheme.dashboardMutedText)
@@ -1149,6 +1151,7 @@ struct ProjectReplyDetailList: View {
                 + "\(row.reply.totalTokens.formatted()) Token，耗时 "
                 + TokenFormatter.worktime(row.reply.aiWorktimeMilliseconds)
                 + "，输出速率 \(TokenFormatter.rateWithUnit(row.reply.averageOutputTokensPerSecond))"
+                + "，Subagent \(row.reply.subagentCount) 个"
         )
         .contentShape(Rectangle())
         .onHover { isHovering in
@@ -1169,6 +1172,7 @@ struct ProjectReplyDetailList: View {
                 .monospacedDigit()
         }
         .font(.system(size: 8.5, weight: .semibold))
+        .fixedSize()
         .foregroundStyle(count > 0 ? tint : CodexVistaTheme.dashboardMutedText.opacity(0.72))
         .padding(.horizontal, 6)
         .frame(height: 20)
@@ -1289,6 +1293,13 @@ struct ProjectReplyHoverCard: View {
                     icon: "wrench.and.screwdriver.fill",
                     tint: CodexVistaTheme.dashboardAccentSecondary
                 )
+                hoverSummary(
+                    title: "Subagent",
+                    count: row.reply.subagentCount,
+                    icon: "person.2",
+                    tint: CodexVistaTheme.dashboardAccent,
+                    unit: "个"
+                )
             }
 
             Divider()
@@ -1330,21 +1341,24 @@ struct ProjectReplyHoverCard: View {
         title: String,
         count: Int,
         icon: String,
-        tint: Color
+        tint: Color,
+        unit: String = "次"
     ) -> some View {
-        HStack(spacing: 7) {
+        HStack(spacing: 5) {
             Image(systemName: icon)
                 .font(.system(size: 10.5, weight: .semibold))
                 .foregroundStyle(tint)
             Text(title)
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+                .lineLimit(1)
             Spacer(minLength: 0)
-            Text("\(count) 次")
+            Text("\(count) \(unit)")
                 .font(.system(size: 11, weight: .semibold, design: .rounded))
                 .monospacedDigit()
+                .fixedSize()
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 8)
         .frame(maxWidth: .infinity, minHeight: 38)
         .background(
             tint.opacity(0.055),

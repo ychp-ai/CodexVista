@@ -1561,6 +1561,7 @@ final class DashboardQueryServiceTests: XCTestCase {
         XCTAssertEqual(agent.tokens, 25)
         XCTAssertEqual(agent.aiWorktimeMilliseconds, 14_000)
         XCTAssertEqual(agent.replies.count, 1)
+        XCTAssertEqual(agent.replies.first?.subagentCount, 0)
         XCTAssertEqual(agent.replies.first?.status, .completed)
         XCTAssertEqual(agent.modelCalls, [ProjectReplyActivityCall(name: "child-model", count: 1)])
         XCTAssertEqual(agent.toolCalls, [ProjectReplyActivityCall(name: "exec_command", count: 1)])
@@ -1598,6 +1599,8 @@ final class DashboardQueryServiceTests: XCTestCase {
         XCTAssertEqual(projectEntry.replyCount, 2)
 
         let sharedReply = try XCTUnwrap(conversation.replies.first { $0.id == "shared-turn" })
+        XCTAssertEqual(sharedReply.subagentCount, 1)
+        XCTAssertEqual(conversation.replies.first { $0.id == "other-turn" }?.subagentCount, 0)
         XCTAssertEqual(sharedReply.totalTokens, 55)
         XCTAssertEqual(sharedReply.model, "child-model ×1 · parent-model ×1")
         XCTAssertEqual(sharedReply.status, .completed)
@@ -1614,6 +1617,62 @@ final class DashboardQueryServiceTests: XCTestCase {
                 ProjectReplyActivityCall(name: "spawn_agent", count: 1)
             ]
         )
+    }
+
+    func testReplySubagentCountDeduplicatesNestedThreadsWithinTheSelectedRange() throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let store = try makeStore()
+        let records: [(String, String, TimeInterval, Int64)] = [
+            ("parent", "first", -10, 10), ("parent", "second", -1, 20),
+            ("child", "child-first", -25, 5), ("child", "child-second", -15, 6),
+            ("nested", "nested-turn", -10, 7), ("second-child", "second-child-turn", -1, 8),
+            ("old-child", "old-turn", -172_800, 9), ("guardian", "guardian-turn", -10, 1),
+            ("unresolved", "unresolved-turn", -10, 4)
+        ]
+        try store.commit(batch(
+            events: records.map { thread, turn, offset, tokens in
+                usage("\(thread)-\(turn)", at: now.addingTimeInterval(offset), total: tokens,
+                      threadID: thread, turnID: turn)
+            }, quotas: [],
+            stateEvents: [
+                lifecycle("first-start", threadID: "parent", turnID: "first", kind: .started,
+                          at: now.addingTimeInterval(-259_200)),
+                lifecycle("second-start", threadID: "parent", turnID: "second", kind: .started,
+                          at: now.addingTimeInterval(-5)),
+                lifecycle("child-start", threadID: "child", turnID: "child-first", kind: .started,
+                          at: now.addingTimeInterval(-30))
+            ]
+        ))
+        let creationOffsets: [String: TimeInterval] = [
+            "child": -30, "second-child": -2, "old-child": -172_801,
+            "guardian": -30, "no-usage": -30
+        ]
+        var relations = creationOffsets.mapValues { offset in
+            CodexChildThreadRelation(
+                parentThreadID: "parent",
+                childCreatedAtMilliseconds: Int64(now.addingTimeInterval(offset).timeIntervalSince1970 * 1_000)
+            )
+        }
+        relations["nested"] = CodexChildThreadRelation(
+            parentThreadID: "child",
+            childCreatedAtMilliseconds: Int64(now.addingTimeInterval(-20).timeIntervalSince1970 * 1_000)
+        )
+        let snapshot = try DashboardQueryService(store: store).snapshot(
+            now: now, calendar: CodexUsageCalendar.utc,
+            threadTitlesByThreadID: ["guardian": "命令权限检查"],
+            parentThreadIDsByChildThreadID: ["unresolved": "parent"],
+            childThreadRelationsByChildThreadID: relations
+        )
+
+        for range in [ActivityRange.today, .sevenDays, .thirtyDays, .allTime] {
+            let ranking = snapshot.workspaceUsage.ranking(for: range)
+            let conversation = try XCTUnwrap(ranking.entries.first?.visibleConversations.first)
+            XCTAssertEqual(conversation.replies.first { $0.id == "first" }?.subagentCount,
+                           range == .today ? 2 : 3)
+            XCTAssertEqual(conversation.replies.first { $0.id == "second" }?.subagentCount, 1)
+            XCTAssertEqual(conversation.replies.first { $0.id == "unresolved-turn" }?.subagentCount, 0)
+            XCTAssertEqual(ranking.totalTokens, range == .today ? 61 : 70)
+        }
     }
 
     func testSubagentUsageFallsBackToActiveParentReplyWithoutSpawnActivity() throws {
@@ -2348,6 +2407,71 @@ final class DashboardQueryServiceTests: XCTestCase {
         XCTAssertEqual(entry.name, "Target")
         XCTAssertEqual(entry.configuredDirectories.map(\.name), ["Current root"])
         XCTAssertEqual(entry.tokens, 40)
+    }
+
+    func testTaskProjectAssignmentsOverrideSharedRootsAndFollowSubagentLineage() throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let store = try makeStore()
+        let project = ProjectIdentity(id: "shared-path", name: "shared")
+        let workspace = WorkspaceIdentity(id: "shared-roots", name: "Shared", rootCount: 1)
+        let tokensByThread: [String: Int64] = [
+            "parent": 40, "child": 20, "grandchild": 10, "assigned-child": 5, "unassigned": 25
+        ]
+        try store.commit(batch(
+            events: tokensByThread.map { threadID, tokens in
+                usage(threadID, at: now.addingTimeInterval(-2), total: tokens,
+                      project: project, workspace: workspace, threadID: threadID, turnID: "turn")
+            },
+            quotas: [],
+            stateEvents: [
+                lifecycle("start", threadID: "parent", turnID: "turn", kind: .started,
+                          at: now.addingTimeInterval(-50)),
+                lifecycle("end", threadID: "parent", turnID: "turn", kind: .completed,
+                          at: now.addingTimeInterval(-5))
+            ]
+        ))
+        let sharedDirectory = WorkspaceDirectory(id: project.id, name: project.name)
+        try store.upsertWorkspaceConfiguration(
+            StoredWorkspaceConfiguration(
+                id: "agent", name: "Shared", directories: [
+                    sharedDirectory, WorkspaceDirectory(id: "second-path", name: "second")
+                ], updatedAtMilliseconds: 2000
+            ), matchingWorkspaceIDs: [], isCurrent: true
+        )
+        try store.upsertWorkspaceConfiguration(
+            StoredWorkspaceConfiguration(
+                id: "assistant", name: "Shared", directories: [sharedDirectory],
+                updatedAtMilliseconds: 2000
+            ), matchingWorkspaceIDs: [workspace.id], isCurrent: true
+        )
+        let snapshot = try DashboardQueryService(store: store).snapshot(
+            now: now,
+            calendar: CodexUsageCalendar.utc,
+            parentThreadIDsByChildThreadID: [
+                "child": "parent", "grandchild": "child", "assigned-child": "parent"
+            ],
+            workspaceConfigurationIDsByThreadID: ["parent": "agent", "assigned-child": "assistant"]
+        )
+
+        for range in [ActivityRange.today, .sevenDays, .thirtyDays, .allTime] {
+            let ranking = snapshot.workspaceUsage.ranking(for: range)
+            XCTAssertEqual(ranking.totalTokens, 100)
+            XCTAssertEqual(ranking.entries.map(\.id), ["agent", "assistant"])
+            XCTAssertEqual(ranking.entries.map(\.tokens), [70, 30])
+            let agent = try XCTUnwrap(ranking.entries.first)
+            XCTAssertEqual(agent.conversations.map(\.id), [ThreadDisplayIdentifier.make(from: "parent")])
+            XCTAssertEqual(agent.subagents.map(\.tokens).sorted(), [10, 20])
+            XCTAssertEqual(agent.configuredDirectories.map(\.name), ["shared", "second"])
+            XCTAssertEqual(agent.dailyUsage.reduce(0) { $0 + $1.tokens }, 70)
+            XCTAssertEqual(agent.conversations.flatMap(\.replies).reduce(0) { $0 + $1.totalTokens }, 70)
+            XCTAssertEqual(agent.aiWorktimeMilliseconds, 45_000)
+            let assistant = try XCTUnwrap(ranking.entries.last)
+            XCTAssertEqual(assistant.subagents.map(\.tokens), [5])
+            XCTAssertEqual(assistant.dailyUsage.reduce(0) { $0 + $1.tokens }, 30)
+            XCTAssertEqual(assistant.aiWorktimeMilliseconds, 0)
+        }
+        XCTAssertEqual(try store.usageEvents().map(\.workspace), Array(repeating: workspace, count: 5))
+        XCTAssertEqual(try store.totalUsage(), 100)
     }
 
     func testSameDirectoryUsageIsSeparatedByWorkspaceIdentity() throws {
