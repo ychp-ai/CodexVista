@@ -10,9 +10,30 @@ enum CodexSourceKind: String, Codable, Sendable {
 
 enum PlanKind: String, Codable, Sendable {
     case free
+    case go
     case plus
     case proLite
     case pro20x
+    case proMax
+    case businessStandard
+    case businessPremium
+    case enterprise
+    case edu
+
+    var displayName: String {
+        switch self {
+        case .free: "Free"
+        case .go: "Go"
+        case .plus: "Plus"
+        case .proLite: "Pro 100"
+        case .pro20x: "Pro 200"
+        case .proMax: "Pro 500"
+        case .businessStandard: "Business Standard"
+        case .businessPremium: "Business Premium"
+        case .enterprise: "Enterprise"
+        case .edu: "Edu"
+        }
+    }
 }
 
 struct ProjectIdentity: Equatable, Sendable {

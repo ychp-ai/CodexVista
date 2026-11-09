@@ -233,7 +233,7 @@
 
 ### 模型用量与费用
 
-模型费用说明展示 GPT-6.1 Sol、GPT-6 Astra / Sol / Luna、GPT-5.6 Sol / Terra / Luna、GPT-5.5、GPT-5.4、GPT-5.4 Mini 和 Spark 的价格或参考价，并标注核对日期；Spark 使用 GPT-5.5 参考估算。单价保留必要的三位小数，避免将 $0.075 显示为 $0.08。内置价格更新会重新估算历史用量的 API 等值费用，不修改 Token 数据，也不代表历史实际账单。
+模型费用说明展示 GPT-6.1 Sol / Terra、GPT-6 Astra / Sol / Luna、GPT-5.6 Sol / Terra / Luna、GPT-5.5、GPT-5.4、GPT-5.4 Mini 和 Spark 的价格或参考价，并标注核对日期。Spark 使用 GPT-5.5 参考估算。单价保留必要的三位小数，避免将 $0.075 显示为 $0.08。内置价格更新会按原有 Token 数据重新估算历史用量的 API 等值费用。
 
 - 模型排行入口分别位于今日、7 日、30 日、累计和可选的当前订阅周期用量卡中，排行自动继承所在卡片的时间范围。
 - 悬浮模型数量入口展示该时间范围 Token 用量前 5 名；超过 5 个模型时显示省略提示和未展示数量。点击模型入口、省略提示或“固定并展开全部”后，悬浮窗保持显示并展开完整排行；取消固定后恢复前 5 名预览。
@@ -321,7 +321,7 @@ API 等值费用只用于理解同等 Token 若按公开 API 标准价格计费�
 
 - 根据本机记录展示当前识别到的 Codex 套餐。
 - 可设置或清除第一次订阅时间；设置后按同一订阅日和时刻逐月计算当前订阅周期，不按固定 30 天估算。
-- 设置页说明 Free、Go、Plus、Pro 5x、Pro 20x、Business、Enterprise / Edu 等套餐类别与 API Key 独立按量计费的差异。
+- 设置页可展开查看 Free、Go、Plus、Pro 100、Pro 200、Pro 500、Business Standard、Business Premium、Enterprise 和 Edu，展示公开美元价格并标记当前识别到的档位。API Key 按 Token 用量独立计费。[OpenAI 官方套餐与价格](https://learn.chatgpt.com/docs/pricing#pricing-options)
 - “其他计费方式”集中展示模型 API 标准单价、费用估算边界和官方价格链接；看板周期用量卡中的模型排行只保留用量与费用明细。
 - 套餐说明不参与账单计算，API 等值费用也不代表 Codex 实际账单。
 

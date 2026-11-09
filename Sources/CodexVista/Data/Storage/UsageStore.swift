@@ -2245,9 +2245,9 @@ private enum SQLitePlanResolution {
         }
         let rawValue = try row.optionalString("plan_raw")
         let resolvedRaw = PlanResolver.resolve(rawValue: rawValue)
-        let kind = resolvedRaw.isInferred ? storedKind : resolvedRaw.kind
+        if !resolvedRaw.isInferred { return resolvedRaw }
         return PlanResolution(
-            kind: kind,
+            kind: storedKind,
             rawValue: rawValue,
             isInferred: inferred == 1
         )

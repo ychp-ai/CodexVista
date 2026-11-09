@@ -233,16 +233,22 @@ delta_reasoning = current.reasoning - previous.reasoning
 
 ## 8. 套餐与额度语义
 
-套餐解析保留原始值和是否推断标记。当前明确映射：
+套餐解析保留原始值和是否推断标记。设置页和当前套餐共用以下名称。
 
 | 原始值 | 展示值 |
 | --- | --- |
 | `free` | Free |
+| `go` | Go |
 | `plus` | Plus |
-| `prolite` | Pro 5x |
-| `pro` | Pro 20x |
+| `prolite` | Pro 100 |
+| `pro` | Pro 200 |
+| `promax` | Pro 500 |
+| `team`、`business` | Business Standard |
+| `self_serve_business_prolite` | Business Premium |
+| `enterprise` | Enterprise |
+| `edu` | Edu |
 
-未知或缺失值按产品规则回退为推断 Free，历史事件保持当时套餐，不随当前套餐变化而重写。
+未知或缺失值回退为推断 Free。读取历史事件时可根据保留的原始标识识别新增档位，已有套餐记录无需迁移。[OpenAI 官方套餐定价](https://learn.chatgpt.com/docs/pricing#pricing-options) · [Business 席位名称](https://developers.openai.com/api/docs/guides/chatgpt-api-credits#credit-amounts)
 
 额度按 `window_minutes` 匹配，不依赖 primary / secondary 顺序：
 
@@ -411,11 +417,11 @@ Guardian 的“命令权限检查”属于内部任务：其 Token 保留在工�
 
 当前每日用量采用 UTC 日期边界，以尽量接近 Codex 服务端日统计。UI 的周期访问按稳定 ID 查找并提供零值回退，避免加载中或不完整数据造成数组越界。
 
-模型费用使用显式的内置 API 标准价格目录，当前收录 `gpt-6.1-sol`、`gpt-6-astra`、`gpt-6-sol`、`gpt-6-luna`、`gpt-5.6` / `gpt-5.6-sol`、`gpt-5.6-terra`、`gpt-5.6-luna`、`gpt-5.5`、`gpt-5.4` 和 `gpt-5.4-mini`。GPT-6 Astra 于 2026-09-07 按官方 API 页面核对，标准价为 10 / 1 / 50；GPT-6 Sol 和 Luna 于 2026-09-23 核对，分别为 2 / 0.2 / 10 与 0.1 / 0.01 / 0.5；GPT-6.1 Sol 于 2026-10-08 核对，为 2 / 0.1 / 10，缓存输入价独立于 GPT-6 Sol；其他模型价格于 2026-09-04 核对；GPT-5.6 Sol 使用当日公开优惠价 4 / 0.4 / 20，Terra 为 2 / 0.2 / 12（输入 / 缓存输入 / 输出，美元每百万 Token）。单价显示保留必要的三位小数，例如 Mini 的缓存输入为 $0.075。估算分别计算未缓存输入、缓存输入、可见输出和推理输出，推理 Token 按输出价格处理。设置页“其他计费方式”的模型费用说明以可滚动表格展示目录内的 11 个模型、核对日期、官方价格链接和估算边界；Spark 没有公开 API 定价，单独列入参考价展示目录，不进入公开价格目录；当前聚合数据无法还原单次请求边界和缓存写入量，因此总额不应用这些附加倍率。`gpt-5.3-codex-spark`、`codex-auto-review`、`Unknown Model` 或其他未收录独立价格的模型统一回退到 GPT-5.5 参考价，计入费用总额并以 `≈` 标记；该数值不等同于 Codex 订阅账单。内置价格统一用于历史用量的当前 API 等值估算，不做历史价格生效日期对账。
+`ModelPricingCatalog` 内置 API 标准单价，最近一次公开价格核对为 2026-11-09。GPT-6.1 Terra 的输入 / 缓存输入 / 输出价格为 1 / 0.05 / 5，GPT-6.1 Sol 为 2 / 0.1 / 10，GPT-6 Astra 为 10 / 1 / 50，GPT-6 Sol 为 2 / 0.2 / 10，GPT-6 Luna 为 0.1 / 0.01 / 0.5，单位为美元每百万 Token。GPT-5.6 Sol（别名 `gpt-5.6`）的 4 / 0.4 / 20 为截至 2026-11-30 的公开优惠价。[GPT-6.1 Terra](https://developers.openai.com/api/docs/models/gpt-6.1-terra) · [GPT-6.1 Sol](https://developers.openai.com/api/docs/models/gpt-6.1-sol) · [GPT-6 Astra](https://developers.openai.com/api/docs/models/gpt-6-astra) · [GPT-6 Sol](https://developers.openai.com/api/docs/models/gpt-6-sol) · [GPT-6 Luna](https://developers.openai.com/api/docs/models/gpt-6-luna) · [GPT-5.6 Sol](https://developers.openai.com/api/docs/models/gpt-5.6-sol)
 
-GPT-6.1 Sol 与 GPT-6 Astra、Sol 和 Luna 均按各自目录价格计算 `(未缓存输入 × 输入单价 + 缓存输入 × 缓存输入单价 + 可见输出 × 输出单价 + 推理输出 × 输出单价) / 1,000,000` 美元，所有费用入口共用该规则，不再使用 GPT-5.5 参考价或显示参考价标记。API 规则元数据记录超过 272K 输入后的输入及缓存 2 倍、输出 1.5 倍，以及缓存写入 1.25 倍；这些元数据仅用于说明，当前聚合数据无法还原单次请求是否跨过阈值或实际缓存写入量，因此不用于估算，也不按周期或任务累计输入触发。快速模式、工具调用及其他无法可靠还原的附加费用亦不计入。
+目录同时保留 GPT-5.6 Terra / Luna、GPT-5.5 和 GPT-5.4 / Mini 的单价，用于估算历史用量。设置页以可滚动表格展示 12 个模型、核对日期和官方价格链接，单价保留必要的三位小数，例如 GPT-5.4 Mini 的缓存输入为 $0.075。`gpt-5.3-codex-spark`、`codex-auto-review`、`Unknown Model` 及其他未收录独立价格的模型使用 GPT-5.5 参考价，计入总额并以 `≈` 标记。[Codex 模型说明](https://learn.chatgpt.com/docs/models) · [GPT-5.6 Terra](https://developers.openai.com/api/docs/models/gpt-5.6-terra) · [GPT-5.6 Luna](https://developers.openai.com/api/docs/models/gpt-5.6-luna) · [GPT-5.5](https://developers.openai.com/api/docs/models/gpt-5.5) · [GPT-5.4](https://developers.openai.com/api/docs/models/gpt-5.4) · [GPT-5.4 Mini](https://developers.openai.com/api/docs/models/gpt-5.4-mini)
 
-价格来源：[GPT-6.1 Sol](https://developers.openai.com/api/docs/models/gpt-6.1-sol)、[GPT-6 Astra](https://developers.openai.com/api/docs/models/gpt-6-astra)、[GPT-6 Sol](https://developers.openai.com/api/docs/models/gpt-6-sol)、[GPT-6 Luna](https://developers.openai.com/api/docs/models/gpt-6-luna)、[GPT-5.6 Sol](https://developers.openai.com/api/docs/models/gpt-5.6-sol)、[Terra](https://developers.openai.com/api/docs/models/gpt-5.6-terra)、[GPT-5.6 Luna](https://developers.openai.com/api/docs/models/gpt-5.6-luna)、[GPT-5.5](https://developers.openai.com/api/docs/models/gpt-5.5)、[GPT-5.4](https://developers.openai.com/api/docs/models/gpt-5.4)、[GPT-5.4 Mini](https://developers.openai.com/api/docs/models/gpt-5.4-mini)。模型范围于 2026-10-08 对照官方[Codex 模型说明](https://learn.chatgpt.com/docs/models)与当前客户端可用模型核对，新增 GPT-6.1 Sol；客户端还提供 GPT-6 Astra / Sol / Luna、GPT-5.6 Sol / Terra / Luna 和 GPT-5.5。实际可选项受账号、客户端与分批开放影响，本机旧 CLI 模型缓存不作为完整列表。目录保留 GPT-5.4 系列供历史记录估算。GPT-6.1 Sol 的 API 长上下文与缓存写入规则沿用上述元数据；Fast 为标准价 2 倍，Batch / Flex 为标准价 50%，适用的区域处理加价 10%。这些处理模式和区域信息无法从现有聚合数据可靠还原，均不用于总额估算。
+所有费用入口共用 `(未缓存输入 × 输入单价 + 缓存输入 × 缓存输入单价 + 可见输出 × 输出单价 + 推理输出 × 输出单价) / 1,000,000`，展示按当前标准单价计算的 API 等值费用。目录保留适用模型的 API 长上下文和缓存写入元数据。GPT-6.1 Sol 与 Terra 超过 272K 输入时，单次请求的输入及缓存价格为 2 倍，输出为 1.5 倍，30 分钟缓存写入为输入价的 1.25 倍。聚合数据缺少单次请求边界、缓存写入、处理模式、区域和工具计费信息，估算范围为四类 Token 的标准价格。
 
 `SessionQueryService` 是独立的会话查询能力，当前主看板由 `DashboardQueryService` 组装，未提供独立会话筛选页。该服务支持按展示状态、活动状态、归档状态、来源、模型、套餐和更新时间筛选。查询结果只包含线程短 ID、时间、状态、新鲜度、来源、模型、套餐和 Token 汇总，不包含对话内容。
 

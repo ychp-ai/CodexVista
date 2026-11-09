@@ -1,62 +1,71 @@
 import SwiftUI
 
 struct CodexPlan: Identifiable, Sendable {
-    let name: String
+    let kind: PlanKind
     let summary: String
     let symbol: String
-    let isPaid: Bool
 
-    var id: String { name }
+    var id: PlanKind { kind }
+    var name: String { kind.displayName }
+    var isPaid: Bool { kind != .free }
 }
 
 enum CodexPlanCatalog {
     static let plans: [CodexPlan] = [
         .init(
-            name: "Free",
-            summary: "适合体验 Codex 和处理简短编码任务",
-            symbol: "sparkles",
-            isPaid: false
+            kind: .free,
+            summary: "$0/月 · 适合体验 Codex 和处理简短编码任务",
+            symbol: "sparkles"
         ),
         .init(
-            name: "Go",
-            summary: "适合轻量、日常的编码任务",
-            symbol: "figure.walk.motion",
-            isPaid: true
+            kind: .go,
+            summary: "$8/月 · 适合轻量、日常的编码任务",
+            symbol: "figure.walk.motion"
         ),
         .init(
-            name: "Plus",
-            summary: "适合每周进行几次专注的编码工作",
-            symbol: "plus.circle.fill",
-            isPaid: true
+            kind: .plus,
+            summary: "$20/月 · 支持 CLI、IDE 和云端集成",
+            symbol: "plus.circle.fill"
         ),
         .init(
-            name: "Pro 5x",
-            summary: "标准使用额度为 Plus 的 5 倍",
-            symbol: "bolt.fill",
-            isPaid: true
+            kind: .proLite,
+            summary: "$100/月 · 更高用量额度",
+            symbol: "bolt.fill"
         ),
         .init(
-            name: "Pro 20x",
-            summary: "最高用量档位，标准使用额度为 Plus 的 20 倍",
-            symbol: "bolt.horizontal.circle.fill",
-            isPaid: true
+            kind: .pro20x,
+            summary: "$200/月 · 适合高频使用",
+            symbol: "bolt.horizontal.circle.fill"
         ),
         .init(
-            name: "Business",
-            summary: "面向团队，包含项目和基础管理能力",
-            symbol: "person.2.fill",
-            isPaid: true
+            kind: .proMax,
+            summary: "$500/月 · 支持 Ultrafast",
+            symbol: "bolt.circle.fill"
         ),
         .init(
-            name: "Enterprise / Edu",
-            summary: "面向组织和教育机构，提供企业级控制能力",
-            symbol: "building.2.fill",
-            isPaid: true
+            kind: .businessStandard,
+            summary: "年付 $20/席/月 · 月付 $25/席/月 · 至少 2 席",
+            symbol: "person.2.fill"
+        ),
+        .init(
+            kind: .businessPremium,
+            summary: "团队高级席位 · 价格见工作区结算页",
+            symbol: "person.2.fill"
+        ),
+        .init(
+            kind: .enterprise,
+            summary: "企业级安全与管理 · 联系销售",
+            symbol: "building.2.fill"
+        ),
+        .init(
+            kind: .edu,
+            summary: "面向教育机构 · 联系销售",
+            symbol: "graduationcap.fill"
         )
     ]
 
     static func isCurrent(_ plan: CodexPlan, currentPlanName: String?) -> Bool {
-        plan.name.caseInsensitiveCompare(currentPlanName ?? "Free") == .orderedSame
+        plan.name.caseInsensitiveCompare(currentPlanName ?? PlanKind.free.displayName) == .orderedSame
     }
 }
 
@@ -642,14 +651,23 @@ struct SettingsView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .settingsCard()
-                Button {
-                    showsAllPlans.toggle()
-                } label: {
-                    Label(showsAllPlans ? "收起套餐对比" : "查看全部套餐", systemImage: showsAllPlans ? "chevron.up" : "chevron.down")
+                HStack {
+                    Button {
+                        showsAllPlans.toggle()
+                    } label: {
+                        Label(showsAllPlans ? "收起套餐对比" : "查看全部套餐", systemImage: showsAllPlans ? "chevron.up" : "chevron.down")
+                    }
+                    .buttonStyle(.plain)
+
+                    Spacer()
+
+                    Link(
+                        "官方套餐与价格",
+                        destination: URL(string: "https://learn.chatgpt.com/docs/pricing#pricing-options")!
+                    )
                 }
-                .buttonStyle(.plain)
                 .foregroundStyle(CodexVistaTheme.dashboardAccent)
-                .padding(.leading, 4)
+                .padding(.horizontal, 4)
             }
 
             settingsSection("其他计费方式") {
@@ -1312,9 +1330,9 @@ private struct ModelPricingExplanationView: View {
 
             VStack(alignment: .leading, spacing: 5) {
                 Text("费用按未缓存输入、缓存输入、可见输出和推理输出分别估算，推理 Token 按输出价格计算。")
-                Text("GPT-6.1 Sol 与 GPT-6 Astra、Sol 和 Luna 使用各自公开价格，历史用量也按当前单价重新估算。")
+                Text("已收录模型按当前公开单价估算，包含历史用量。")
                 Text("Spark 暂无公开 API 定价，表中 ≈ 为 GPT-5.5 参考价；codex-auto-review 等未收录独立价格的模型也按此估算。")
-                Text("gpt-5.6 是 gpt-5.6-sol 的别名，使用相同价格。")
+                Text("GPT-5.6 Sol（别名 gpt-5.6）当前优惠价有效至 2026-11-30。")
                 Text("未计入长上下文、缓存写入、快速模式和工具调用等无法从聚合数据可靠还原的附加费用。")
                 Text("该结果仅用于理解 API 等值规模，不代表 Codex 订阅的实际账单。")
             }

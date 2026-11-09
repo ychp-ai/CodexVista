@@ -1976,6 +1976,7 @@ final class DashboardQueryServiceTests: XCTestCase {
         let expectedRates: [(String, Double, Double, Double)] = [
             ("gpt-6-astra", 10, 1, 50),
             ("gpt-6.1-sol", 2, 0.1, 10),
+            ("gpt-6.1-terra", 1, 0.05, 5),
             ("gpt-6-sol", 2, 0.2, 10),
             ("gpt-6-luna", 0.1, 0.01, 0.5),
             ("gpt-5.6-sol", 4, 0.4, 20),
@@ -2032,6 +2033,7 @@ final class DashboardQueryServiceTests: XCTestCase {
         let cases: [(String, ModelCostBreakdown)] = [
             ("gpt-6-astra", .init(uncachedInputUSD: 10, cachedInputUSD: 2, visibleOutputUSD: 150, reasoningUSD: 200)),
             ("gpt-6.1-sol", .init(uncachedInputUSD: 2, cachedInputUSD: 0.2, visibleOutputUSD: 30, reasoningUSD: 40)),
+            ("gpt-6.1-terra", .init(uncachedInputUSD: 1, cachedInputUSD: 0.1, visibleOutputUSD: 15, reasoningUSD: 20)),
             ("gpt-6-sol", .init(uncachedInputUSD: 2, cachedInputUSD: 0.4, visibleOutputUSD: 30, reasoningUSD: 40))
         ]
         for (modelID, expected) in cases {
@@ -2680,47 +2682,60 @@ final class DashboardQueryServiceTests: XCTestCase {
         XCTAssertTrue(ranking.tools.first?.details.isEmpty == true)
     }
 
-    func testDisplaysProLiteAsPro5xAndProAsPro20x() throws {
+    func testDisplaysLatestRecognizedPlanByItsPublishedName() throws {
         let now = Date(timeIntervalSince1970: 10_000)
-        let store = try makeStore()
-        try store.commit(batch(
-            events: [
-                usage("pro-5x", at: now.addingTimeInterval(-1), total: 1, planRaw: "prolite"),
-                usage("pro-20x", at: now, total: 1, planRaw: "pro")
-            ],
-            quotas: []
-        ))
+        let cases = [
+            ("go", "Go"),
+            ("prolite", "Pro 100"),
+            ("pro", "Pro 200"),
+            ("promax", "Pro 500"),
+            ("team", "Business Standard"),
+            ("business", "Business Standard"),
+            ("self_serve_business_prolite", "Business Premium"),
+            ("enterprise", "Enterprise"),
+            ("edu", "Edu")
+        ]
+        for (rawPlan, expectedName) in cases {
+            let store = try makeStore()
+            try store.commit(batch(
+                events: [
+                    usage("previous-plan", at: now.addingTimeInterval(-1), total: 1, planRaw: "plus"),
+                    usage("current-plan", at: now, total: 1, planRaw: rawPlan)
+                ],
+                quotas: []
+            ))
 
-        let snapshot = try DashboardQueryService(store: store).snapshot(
-            now: now,
-            calendar: .current
-        )
+            let snapshot = try DashboardQueryService(store: store).snapshot(now: now, calendar: .current)
 
-        XCTAssertEqual(snapshot.planName, "Pro 20x")
+            XCTAssertEqual(snapshot.planName, expectedName, rawPlan)
+        }
     }
 
-    func testLegacyProStorageKindUsesRawPlanToRecoverPro20x() throws {
+    func testLegacyPlanStorageUsesRecognizedRawPlanInsteadOfItsOldFallback() throws {
         let now = Date(timeIntervalSince1970: 10_000)
-        let store = try makeStore()
-        let legacyEvent = StoredUsageEvent(
-            fingerprint: "legacy-pro-20x",
-            observedAtMilliseconds: 10_000_000,
-            threadID: "thread-1",
-            sourceKind: .desktop,
-            model: "test-model",
-            plan: PlanResolution(kind: .proLite, rawValue: "pro", isInferred: false),
-            usage: .init(uncachedInput: 1, cachedInput: 0, visibleOutput: 0, reasoning: 0),
-            sourceFileID: "file-1",
-            sourceOffset: 1
-        )
-        try store.commit(batch(events: [legacyEvent], quotas: []))
+        let cases: [(PlanResolution, String)] = [
+            (.init(kind: .proLite, rawValue: "pro", isInferred: false), "Pro 200"),
+            (.init(kind: .free, rawValue: "promax", isInferred: true), "Pro 500")
+        ]
+        for (storedPlan, expectedName) in cases {
+            let store = try makeStore()
+            let legacyEvent = StoredUsageEvent(
+                fingerprint: "legacy-plan",
+                observedAtMilliseconds: 10_000_000,
+                threadID: "thread-1",
+                sourceKind: .desktop,
+                model: "test-model",
+                plan: storedPlan,
+                usage: .init(uncachedInput: 1, cachedInput: 0, visibleOutput: 0, reasoning: 0),
+                sourceFileID: "file-1",
+                sourceOffset: 1
+            )
+            try store.commit(batch(events: [legacyEvent], quotas: []))
 
-        let snapshot = try DashboardQueryService(store: store).snapshot(
-            now: now,
-            calendar: .current
-        )
+            let snapshot = try DashboardQueryService(store: store).snapshot(now: now, calendar: .current)
 
-        XCTAssertEqual(snapshot.planName, "Pro 20x")
+            XCTAssertEqual(snapshot.planName, expectedName)
+        }
     }
 
     func testAggregateOverflowThrowsInsteadOfWrapping() throws {

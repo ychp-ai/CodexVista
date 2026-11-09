@@ -1834,18 +1834,6 @@ private func checkedAdd(_ left: Int64, _ right: Int64, context: String) throws -
     return sum
 }
 
-private extension PlanKind {
-    var displayName: String {
-        switch self {
-        case .free: "Free"
-        case .plus: "Plus"
-        case .proLite: "Pro 5x"
-        case .pro20x: "Pro 20x"
-        }
-    }
-}
-
-
 /// Match local token deltas to observed quota consumption; never bridge resets or UTC days.
 enum DailyQuotaCalculator {
     // Rollout reset timestamps can jitter by seconds within the same window.

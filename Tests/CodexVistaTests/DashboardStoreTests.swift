@@ -130,19 +130,24 @@ final class DashboardStoreTests: XCTestCase {
         XCTAssertNil(SubscriptionCyclePreference.load(from: defaults))
     }
 
-    func testCodexPlanCatalogIncludesCurrentOfficialPlansAndMarksProCurrent() {
+    func testCodexPlanCatalogIncludesOfficialTiersAndMarksOnlyTheMatchingTierCurrent() {
+        let names = [
+            "Free", "Go", "Plus", "Pro 100", "Pro 200", "Pro 500",
+            "Business Standard", "Business Premium", "Enterprise", "Edu"
+        ]
         XCTAssertEqual(
             CodexPlanCatalog.plans.map(\.name),
-            ["Free", "Go", "Plus", "Pro 5x", "Pro 20x", "Business", "Enterprise / Edu"]
+            names
         )
         XCTAssertFalse(CodexPlanCatalog.plans[0].isPaid)
         XCTAssertTrue(CodexPlanCatalog.plans.dropFirst().allSatisfy(\.isPaid))
 
-        let currentPlans = CodexPlanCatalog.plans.filter {
-            CodexPlanCatalog.isCurrent($0, currentPlanName: "Pro 5x")
+        for name in names {
+            let currentPlans = CodexPlanCatalog.plans.filter {
+                CodexPlanCatalog.isCurrent($0, currentPlanName: name)
+            }
+            XCTAssertEqual(currentPlans.map(\.name), [name])
         }
-
-        XCTAssertEqual(currentPlans.map(\.name), ["Pro 5x"])
     }
 
     func testCodexPlanCatalogFallsBackToFreeWhenCurrentPlanIsUnavailable() {

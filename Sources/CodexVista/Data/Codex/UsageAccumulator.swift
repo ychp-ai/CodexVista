@@ -42,12 +42,24 @@ enum PlanResolver {
         switch rawValue?.lowercased() {
         case "free":
             kind = .free
+        case "go":
+            kind = .go
         case "plus":
             kind = .plus
         case "prolite":
             kind = .proLite
         case "pro":
             kind = .pro20x
+        case "promax":
+            kind = .proMax
+        case "team", "business":
+            kind = .businessStandard
+        case "self_serve_business_prolite":
+            kind = .businessPremium
+        case "enterprise":
+            kind = .enterprise
+        case "edu":
+            kind = .edu
         default:
             kind = nil
         }
