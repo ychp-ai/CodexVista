@@ -34,12 +34,12 @@ enum CodexPlanCatalog {
         ),
         .init(
             kind: .pro20x,
-            summary: "$200/月 · 适合高频使用",
+            summary: "$200/月 · GPT-6.2 Sol 支持 Ultrafast",
             symbol: "bolt.horizontal.circle.fill"
         ),
         .init(
             kind: .proMax,
-            summary: "$500/月 · 支持 Ultrafast",
+            summary: "$500/月 · GPT-6.2 Sol / Astra 支持 Ultrafast",
             symbol: "bolt.circle.fill"
         ),
         .init(
@@ -1333,7 +1333,7 @@ private struct ModelPricingExplanationView: View {
                 Text("已收录模型按当前公开单价估算，包含历史用量。")
                 Text("Spark 暂无公开 API 定价，表中 ≈ 为 GPT-5.5 参考价；codex-auto-review 等未收录独立价格的模型也按此估算。")
                 Text("GPT-5.6 Sol（别名 gpt-5.6）当前优惠价有效至 2026-11-30。")
-                Text("未计入长上下文、缓存写入、快速模式和工具调用等无法从聚合数据可靠还原的附加费用。")
+                Text("未计入长上下文、缓存写入、快速 / Ultrafast 模式和工具调用等无法从聚合数据可靠还原的附加费用。")
                 Text("该结果仅用于理解 API 等值规模，不代表 Codex 订阅的实际账单。")
             }
             .font(.caption)

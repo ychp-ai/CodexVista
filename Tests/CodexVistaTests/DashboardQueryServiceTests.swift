@@ -2033,6 +2033,8 @@ final class DashboardQueryServiceTests: XCTestCase {
     func testModelPricingCatalogUsesPublishedRatesAndGPT55ReferenceFallback() throws {
         let sol = try XCTUnwrap(ModelPricingCatalog.rule(for: "gpt-5.6-sol"))
         let expectedRates: [(String, Double, Double, Double)] = [
+            ("gpt-6.2-astra", 8, 0.4, 40),
+            ("gpt-6.2-sol", 2, 0.1, 10),
             ("gpt-6-astra", 10, 1, 50),
             ("gpt-6.1-sol", 2, 0.1, 10),
             ("gpt-6.1-terra", 1, 0.05, 5),
@@ -2059,11 +2061,13 @@ final class DashboardQueryServiceTests: XCTestCase {
         }
         XCTAssertEqual(ModelPricingCatalog.rule(for: "gpt-5.6"), sol)
         XCTAssertEqual(ModelPricingCatalog.rule(for: "  GPT-5.6-LUNA\n")?.modelID, "gpt-5.6-luna")
+        XCTAssertEqual(ModelPricingCatalog.rule(for: "  GPT-6.2-ASTRA\n")?.modelID, "gpt-6.2-astra")
+        XCTAssertEqual(ModelPricingCatalog.rule(for: "  GPT-6.2-SOL\n")?.modelID, "gpt-6.2-sol")
         XCTAssertEqual(ModelPricingCatalog.rule(for: "  GPT-6-ASTRA\n")?.modelID, "gpt-6-astra")
         XCTAssertEqual(ModelPricingCatalog.rule(for: "  GPT-6-SOL\n")?.modelID, "gpt-6-sol")
         XCTAssertEqual(ModelPricingCatalog.rule(for: "  GPT-6.1-SOL\n")?.modelID, "gpt-6.1-sol")
         XCTAssertEqual(ModelPricingCatalog.rule(for: "  GPT-6-LUNA\n")?.modelID, "gpt-6-luna")
-        for modelID in ["gpt-5.3-codex-spark", "Unknown Model", "gpt-reserve", "gpt-5.6-unknown", "gpt-6-unknown", "gpt-6.1-unknown"] {
+        for modelID in ["gpt-5.3-codex-spark", "Unknown Model", "gpt-reserve", "gpt-5.6-unknown", "gpt-6-unknown", "gpt-6.1-unknown", "gpt-6.2-unknown"] {
             XCTAssertTrue(ModelPricingCatalog.usesReferencePricing(for: modelID), modelID)
             XCTAssertEqual(ModelPricingCatalog.rule(for: modelID)?.modelID, "gpt-5.5", modelID)
         }
@@ -2090,6 +2094,8 @@ final class DashboardQueryServiceTests: XCTestCase {
 
     func testGPT6StandardEstimatesAreConsistentAcrossRankingReplyTaskAndSubscriptionCycle() throws {
         let cases: [(String, ModelCostBreakdown)] = [
+            ("gpt-6.2-astra", .init(uncachedInputUSD: 8, cachedInputUSD: 0.8, visibleOutputUSD: 120, reasoningUSD: 160)),
+            ("gpt-6.2-sol", .init(uncachedInputUSD: 2, cachedInputUSD: 0.2, visibleOutputUSD: 30, reasoningUSD: 40)),
             ("gpt-6-astra", .init(uncachedInputUSD: 10, cachedInputUSD: 2, visibleOutputUSD: 150, reasoningUSD: 200)),
             ("gpt-6.1-sol", .init(uncachedInputUSD: 2, cachedInputUSD: 0.2, visibleOutputUSD: 30, reasoningUSD: 40)),
             ("gpt-6.1-terra", .init(uncachedInputUSD: 1, cachedInputUSD: 0.1, visibleOutputUSD: 15, reasoningUSD: 20)),

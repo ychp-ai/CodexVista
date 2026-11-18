@@ -70,7 +70,7 @@ struct ModelPricingRule: Equatable, Sendable {
 enum ModelPricingCatalog {
     // Standard API rates verified against the individual model pages.
     // https://developers.openai.com/api/docs/models/<modelID>
-    static let lastVerifiedDate = "2026-11-09"
+    static let lastVerifiedDate = "2026-11-18"
     // Spark has no published API price; keep it out of publishedRules.
     static let referencePricedModelIDs = ["gpt-5.3-codex-spark"]
     static var listedModelIDs: [String] {
@@ -78,6 +78,26 @@ enum ModelPricingCatalog {
     }
 
     static let publishedRules: [ModelPricingRule] = [
+        ModelPricingRule(
+            modelID: "gpt-6.2-astra",
+            inputPerMillionUSD: 8,
+            cachedInputPerMillionUSD: 0.4,
+            outputPerMillionUSD: 40,
+            longContextThresholdTokens: 272_000,
+            longContextInputMultiplier: 2,
+            longContextOutputMultiplier: 1.5,
+            cacheWriteMultiplier: 1.25
+        ),
+        ModelPricingRule(
+            modelID: "gpt-6.2-sol",
+            inputPerMillionUSD: 2,
+            cachedInputPerMillionUSD: 0.1,
+            outputPerMillionUSD: 10,
+            longContextThresholdTokens: 272_000,
+            longContextInputMultiplier: 2,
+            longContextOutputMultiplier: 1.5,
+            cacheWriteMultiplier: 1.25
+        ),
         ModelPricingRule(
             modelID: "gpt-6-astra",
             inputPerMillionUSD: 10,
