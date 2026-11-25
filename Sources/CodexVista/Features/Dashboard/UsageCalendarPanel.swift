@@ -218,6 +218,9 @@ struct UsageCalendarPanel: View {
                         .font(.system(size: 8))
                 }
                 Spacer(minLength: 0)
+                if !week.isFuture {
+                    Text("消耗 \(week.usage.quotaConsumption.formatted)")
+                }
                 Text(week.isFuture ? "未开始" : TokenFormatter.compact(week.usage.total))
                     .fontWeight(.semibold)
             }
@@ -242,7 +245,7 @@ struct UsageCalendarPanel: View {
             DailyUsageHoverCard(usage: week.usage, dateText: week.detailTitle, showsModelDetails: $isShowingModelDetails)
                 .padding(4)
         }
-        .accessibilityLabel("\(week.detailTitle)，\(week.isFuture ? "未来日期" : "Token \(week.usage.total)")")
+        .accessibilityLabel("\(week.detailTitle)，\(week.isFuture ? "未来日期" : "额度消耗 \(week.usage.quotaConsumption.formatted)，Token \(week.usage.total)")")
         .accessibilityHint(week.isFuture ? "" : "点击查看周用量明细，点击外部关闭")
     }
 

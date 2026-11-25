@@ -33,7 +33,7 @@ struct UsageCalendarModel {
         let currentMonth = Self.monthStart(for: today, calendar: normalizedCalendar)
         latestMonth = currentMonth
         let earliestUsageDate = usage
-            .filter { $0.total > 0 }
+            .filter { $0.total > 0 || $0.quotaConsumption.percentagePoints != nil }
             .compactMap { Self.date(forID: $0.id, calendar: normalizedCalendar) }
             .min()
         let candidate = earliestUsageDate.map {
@@ -254,7 +254,8 @@ extension UsageCalendarModel {
             referencePricedModelCount: entries.filter {
                 $0.estimatedCostUSD != nil && ModelPricingCatalog.usesReferencePricing(for: $0.model)
             }.count,
-            modelEntries: entries
+            modelEntries: entries,
+            quotaConsumption: .total(in: days)
         )
         let statistics = days.compactMap(\.quotaStatistics)
         if !statistics.isEmpty {

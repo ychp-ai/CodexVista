@@ -133,12 +133,19 @@ final class DashboardQueryService: @unchecked Sendable {
                 calendar: calendar
             )
         }
+        let quotaHistory = try store.quotaHistory().filter { $0.observation.observedAtMilliseconds <= nowMilliseconds }
+        let quotaAnalysis = DailyQuotaCalculator.calculate(
+            events: quotaHistory,
+            tokens: trendRows.map { ($0.observedAtMilliseconds, Double($0.totalTokens)) },
+            calendar: resolvedUsageCalendar
+        )
+        let consumption = quotaAnalysis.consumption
         var subscriptionRows: [StoredUsageQueryRow] = []
         var periods = try [
-            period(id: "today", title: "今日", rows: todayRows),
-            period(id: "sevenDays", title: "7 日", rows: sevenDayRows),
-            period(id: "thirtyDays", title: "30 日", rows: thirtyDayRows),
-            period(id: "allTime", title: "累计", rows: allRows)
+            period(id: "today", title: "今日", rows: todayRows, consumption: consumption.total(from: todayStart)),
+            period(id: "sevenDays", title: "7 日", rows: sevenDayRows, consumption: consumption.total(from: sevenDayStart)),
+            period(id: "thirtyDays", title: "30 日", rows: thirtyDayRows, consumption: consumption.total(from: thirtyDayStart)),
+            period(id: "allTime", title: "累计", rows: allRows, consumption: consumption.total())
         ]
         if let subscriptionCycle {
             subscriptionRows = try store.usageEvents(
@@ -149,7 +156,8 @@ final class DashboardQueryService: @unchecked Sendable {
                 try period(
                     id: "subscriptionCycle",
                     title: "当前订阅周期",
-                    rows: subscriptionRows
+                    rows: subscriptionRows,
+                    consumption: consumption.total(from: subscriptionCycle.start)
                 ),
                 at: periods.count - 1
             )
@@ -290,14 +298,15 @@ final class DashboardQueryService: @unchecked Sendable {
             allTime: try modelRanking(from: historicalRows)
         )
 
-        let quotaHistory = try store.quotaHistory().filter { $0.observation.observedAtMilliseconds <= nowMilliseconds }
+        let quotaChartHistory = QuotaHistorySnapshot.make(events: quotaHistory, usageRows: trendRows, now: now)
         return DashboardSnapshot(
             planName: resolvedPlanName(from: allRows),
             updatedText: "刚刚刷新",
             periods: periods,
             subscriptionCycle: subscriptionCycle,
             quotas: quotaResult.quotas,
-            quotaHistory: .make(events: quotaHistory, usageRows: trendRows, now: now),
+            quotaHistory: quotaChartHistory,
+            rollingSevenDayQuotaConsumption: consumption.total(from: quotaChartHistory.start),
             outputTokenRate: try latestReplyOutputRate(
                 from: historicalRows,
                 lifecycleFacts: turnLifecycleFacts,
@@ -307,13 +316,15 @@ final class DashboardQueryService: @unchecked Sendable {
             models: try models(from: sevenDayRows),
             dailyUsage: try dailyUsage(
                 from: trendRows,
-                quotaEvents: quotaHistory,
+                quotaDays: quotaAnalysis.days,
+                consumption: consumption,
                 minimumStart: usageThirtyDayStart,
                 through: usageTodayStart,
                 calendar: resolvedUsageCalendar
             ),
             subscriptionCycleUsage: try subscriptionCycleUsage(
                 from: historicalRows,
+                consumption: consumption,
                 firstSubscribedAt: firstSubscriptionDate,
                 through: now,
                 calendar: calendar
@@ -1101,7 +1112,8 @@ final class DashboardQueryService: @unchecked Sendable {
     private func period(
         id: String,
         title: String,
-        rows: [StoredUsageQueryRow]
+        rows: [StoredUsageQueryRow],
+        consumption: QuotaConsumption
     ) throws -> PeriodUsage {
         let aggregate = try UsageAggregate(rows: rows)
         return PeriodUsage(
@@ -1113,7 +1125,8 @@ final class DashboardQueryService: @unchecked Sendable {
             output: Int(clamping: try checkedAdd(
                 aggregate.visibleOutput, aggregate.reasoning, context: "period.raw_output"
             )),
-            reasoning: Int(clamping: aggregate.reasoning)
+            reasoning: Int(clamping: aggregate.reasoning),
+            quotaConsumption: consumption
         )
     }
 
@@ -1224,21 +1237,20 @@ final class DashboardQueryService: @unchecked Sendable {
 
     private func dailyUsage(
         from rows: [StoredUsageQueryRow],
-        quotaEvents: [StoredQuotaEvent],
+        quotaDays: [Date: DailyQuotaStatistics],
+        consumption: QuotaConsumptionHistory,
         minimumStart: Date,
         through endDay: Date,
         calendar: Calendar
     ) throws -> [DailyUsage] {
-        let quotaDays = DailyQuotaCalculator.calculate(
-            events: quotaEvents,
-            tokens: rows.map { ($0.observedAtMilliseconds, Double($0.totalTokens)) },
-            calendar: calendar
-        )
-        guard !rows.isEmpty || !quotaDays.isEmpty else { return [] }
+        guard !rows.isEmpty || !quotaDays.isEmpty || consumption.firstDate != nil else { return [] }
 
         var totals: [Date: UsageAggregate] = [:]
         var rowsByDay: [Date: [StoredUsageQueryRow]] = [:]
         var earliestDay = min(minimumStart, quotaDays.keys.min() ?? minimumStart)
+        if let firstDate = consumption.firstDate {
+            earliestDay = min(earliestDay, calendar.startOfDay(for: firstDate))
+        }
         for row in rows {
             let date = Date(timeIntervalSince1970: TimeInterval(row.observedAtMilliseconds) / 1_000)
             let day = calendar.startOfDay(for: date)
@@ -1252,6 +1264,9 @@ final class DashboardQueryService: @unchecked Sendable {
         var result: [DailyUsage] = []
         var day = earliestDay
         while day <= endDay {
+            guard let next = calendar.date(byAdding: .day, value: 1, to: day), next > day else {
+                throw DashboardQueryError.invalidCalendarBoundary
+            }
             let components = calendar.dateComponents([.year, .month, .day], from: day)
             guard let year = components.year, let month = components.month, let dayNumber = components.day else {
                 throw DashboardQueryError.invalidCalendarBoundary
@@ -1269,12 +1284,10 @@ final class DashboardQueryService: @unchecked Sendable {
                 estimatedCostUSD: models.estimatedCostUSD,
                 unpricedModelCount: models.unpricedModelCount,
                 referencePricedModelCount: models.referencePricedModelCount,
-                modelEntries: models.entries
+                modelEntries: models.entries,
+                quotaConsumption: consumption.total(from: day, before: next)
             ))
             result[result.count - 1].quotaStatistics = quotaDays[day] ?? DailyQuotaStatistics()
-            guard let next = calendar.date(byAdding: .day, value: 1, to: day), next > day else {
-                throw DashboardQueryError.invalidCalendarBoundary
-            }
             day = next
         }
         return result
@@ -1282,6 +1295,7 @@ final class DashboardQueryService: @unchecked Sendable {
 
     private func subscriptionCycleUsage(
         from rows: [StoredUsageQueryRow],
+        consumption: QuotaConsumptionHistory,
         firstSubscribedAt: Date?,
         through now: Date,
         calendar: Calendar
@@ -1340,7 +1354,8 @@ final class DashboardQueryService: @unchecked Sendable {
                 estimatedCostUSD: models.estimatedCostUSD,
                 unpricedModelCount: models.unpricedModelCount,
                 referencePricedModelCount: models.referencePricedModelCount,
-                modelEntries: models.entries
+                modelEntries: models.entries,
+                quotaConsumption: consumption.total(from: start, before: end)
             ))
             cycleIndex += 1
         }
@@ -1880,14 +1895,49 @@ private func checkedAdd(_ left: Int64, _ right: Int64, context: String) throws -
     return sum
 }
 
-/// Match local token deltas to observed quota consumption; never bridge resets or UTC days.
+/// Prefix totals let local periods, UTC days and subscription cycles query the same observations.
+struct QuotaConsumptionHistory {
+    private var samples: [(date: Date, total: Double)] = []
+
+    var firstDate: Date? { samples.first?.date }
+
+    mutating func append(_ percentagePoints: Double, at date: Date) {
+        let total = (samples.last?.total ?? 0) + percentagePoints
+        samples.append((date, total))
+    }
+
+    func total(from start: Date = .distantPast, before end: Date = .distantFuture) -> QuotaConsumption {
+        let lower = firstIndex(onOrAfter: start)
+        let upper = firstIndex(onOrAfter: end)
+        guard lower < upper else { return QuotaConsumption() }
+        let baseline = lower == 0 ? 0 : samples[lower - 1].total
+        return QuotaConsumption(samples[upper - 1].total - baseline)
+    }
+
+    private func firstIndex(onOrAfter date: Date) -> Int {
+        var lower = 0
+        var upper = samples.count
+        while lower < upper {
+            let mid = lower + (upper - lower) / 2
+            if samples[mid].date < date {
+                lower = mid + 1
+            } else {
+                upper = mid
+            }
+        }
+        return lower
+    }
+}
+
+/// Count observed quota declines independently of the same-day samples used for Token estimates.
 enum DailyQuotaCalculator {
     // Rollout reset timestamps can jitter by seconds within the same window.
     // Compare against a fixed window reference, not a sliding chain of samples.
     private static func sameResetWindow(_ reference: QuotaObservation, _ current: QuotaObservation) -> Bool {
         guard let first = reference.resetsAtMilliseconds,
               let second = current.resetsAtMilliseconds,
-              current.observedAtMilliseconds < first else { return false }
+              current.observedAtMilliseconds < first,
+              current.observedAtMilliseconds < second else { return false }
         return abs(Double(first) - Double(second)) <= 60_000
     }
 
@@ -1895,7 +1945,7 @@ enum DailyQuotaCalculator {
         events: [StoredQuotaEvent],
         tokens: [(timestamp: Int64, total: Double)],
         calendar: Calendar
-    ) -> [Date: DailyQuotaStatistics] {
+    ) -> (days: [Date: DailyQuotaStatistics], consumption: QuotaConsumptionHistory) {
         let groups = Dictionary(grouping: events.filter {
             $0.observation.kind == .weekly && $0.observation.windowMinutes == 10_080
         }, by: { $0.observation.observedAtMilliseconds })
@@ -1907,6 +1957,7 @@ enum DailyQuotaCalculator {
         var previous: QuotaObservation?
         var windowReference: QuotaObservation?
         var result: [Date: DailyQuotaStatistics] = [:]
+        var consumption = QuotaConsumptionHistory()
         for timestamp in groups.keys.sorted() {
             while tokenIndex < sortedTokens.count, sortedTokens[tokenIndex].timestamp <= timestamp {
                 cumulativeTokens += sortedTokens[tokenIndex].total
@@ -1932,6 +1983,9 @@ enum DailyQuotaCalculator {
             let changedReset = windowReference.map { !sameResetWindow($0, observation) } ?? false
             let changedWindow = changedPlan || changedReset
             if windowReference == nil || changedWindow { windowReference = observation }
+            if let previous, !changedWindow {
+                consumption.append(max(0, previous.remaining - observation.remaining) * 100, at: date)
+            }
             if let previous, previous.remaining != observation.remaining {
                 let reason = changedPlan ? "套餐变化" : changedReset ? "重置时间变化" :
                     observation.remaining > previous.remaining ? "额度回升" : "额度消耗"
@@ -1960,6 +2014,6 @@ enum DailyQuotaCalculator {
             }
             previous = observation
         }
-        return result
+        return (result, consumption)
     }
 }

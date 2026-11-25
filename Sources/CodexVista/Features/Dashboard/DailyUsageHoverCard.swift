@@ -26,7 +26,7 @@ struct DailyUsageHoverCard: View {
         .shadow(color: CodexVistaTheme.dashboardShadow, radius: 7, y: 3)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(
-            "\(dateText)，总 Token \(usage.total)，输入 \(usage.uncachedInput)（\(tokenShare(usage.uncachedInput))），缓存 \(usage.cachedInput)（\(tokenShare(usage.cachedInput))），输出 \(usage.output)（\(tokenShare(usage.output))），推理 \(usage.reasoning)（\(tokenShare(usage.reasoning))）\(costAccessibilityDescription)"
+            "\(dateText)，总 Token \(usage.total)，额度消耗 \(usage.quotaConsumption.formatted)，输入 \(usage.uncachedInput)（\(tokenShare(usage.uncachedInput))），缓存 \(usage.cachedInput)（\(tokenShare(usage.cachedInput))），输出 \(usage.output)（\(tokenShare(usage.output))），推理 \(usage.reasoning)（\(tokenShare(usage.reasoning))）\(costAccessibilityDescription)"
         )
     }
 
@@ -59,6 +59,15 @@ struct DailyUsageHoverCard: View {
                 Text("总 Token")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+                Spacer(minLength: 8)
+                Text("额度消耗")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(CodexVistaTheme.dashboardMutedText)
+                Text(usage.quotaConsumption.formatted)
+                    .font(CodexVistaTheme.metricFont(size: 15))
+                    .foregroundStyle(CodexVistaTheme.dashboardAccent)
+                    .monospacedDigit()
+                    .help(QuotaConsumption.help)
             }
             .padding(.bottom, 5)
 

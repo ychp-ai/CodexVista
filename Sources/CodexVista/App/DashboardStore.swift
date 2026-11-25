@@ -219,7 +219,7 @@ actor LiveDashboardDataClient: DashboardDataClient {
             }
         )
         let issues = importResult?.issues ?? []
-        let hasUsage = snapshot.totalTokens > 0
+        let hasUsage = snapshot.totalTokens > 0 || snapshot.periods.contains { $0.quotaConsumption.percentagePoints != nil }
         let hasDegradedIndex: Bool
         if case .degraded = facts.indexHealth {
             hasDegradedIndex = true

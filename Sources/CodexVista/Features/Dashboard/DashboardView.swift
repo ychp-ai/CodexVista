@@ -1011,6 +1011,8 @@ private struct DashboardContentView: View {
                             }
                         }
                         Spacer(minLength: 0)
+                        summaryMetric("额度消耗", value: period.quotaConsumption.formatted)
+                            .help(QuotaConsumption.help)
                         PeriodModelUsageControl(
                             periodTitle: period.title,
                             periodSubtitle: period.id == "subscriptionCycle"
@@ -1125,7 +1127,7 @@ private struct DashboardContentView: View {
             Group {
                 switch selectedAnalyticsTab {
                 case .todayTasks:
-                    TodayTaskPanel(ranking: snapshot.workspaceUsage.today)
+                    TodayTaskPanel(ranking: snapshot.workspaceUsage.today, quotaConsumption: snapshot.todayQuotaConsumption)
                 case .trend:
                     trendRow
                 case .activity:
@@ -1266,23 +1268,15 @@ private struct DashboardContentView: View {
 
     private var trendPanel: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 12) {
-                Label("Token 趋势", systemImage: "chart.xyaxis.line")
-                    .font(CodexVistaTheme.headingFont(size: 14))
-
-                rangeSelector
-
-                Spacer()
-
-                HStack(spacing: 16) {
-                    trendSummary("总计", value: selectedTotal)
-                    Rectangle()
-                        .fill(CodexVistaTheme.dashboardBorder)
-                        .frame(width: 1, height: 24)
-                    trendSummary(
-                        selectedRange == .subscriptionCycles ? "周期均值" : "日均",
-                        value: selectedAverage
-                    )
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 12) {
+                    trendControls
+                    Spacer(minLength: 0)
+                    trendMetrics
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    trendControls
+                    trendMetrics
                 }
             }
 
@@ -1296,6 +1290,26 @@ private struct DashboardContentView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(.bottom, 10)
         }
+    }
+
+    private var trendControls: some View {
+        HStack(spacing: 12) {
+            Label("Token 趋势", systemImage: "chart.xyaxis.line")
+                .font(CodexVistaTheme.headingFont(size: 14))
+            rangeSelector
+        }
+        .fixedSize()
+    }
+
+    private var trendMetrics: some View {
+        HStack(spacing: 12) {
+            summaryMetric("总计", value: TokenFormatter.compact(selectedTotal))
+            summaryMetric(selectedRange == .subscriptionCycles ? "周期均值" : "日均",
+                         value: TokenFormatter.compact(selectedAverage))
+            summaryMetric("额度消耗", value: QuotaConsumption.total(in: selectedUsage).formatted)
+                .help(QuotaConsumption.help)
+        }
+        .fixedSize()
     }
 
     private var rangeSelector: some View {
@@ -1335,12 +1349,12 @@ private struct DashboardContentView: View {
         .accessibilityLabel("趋势时间范围")
     }
 
-    private func trendSummary(_ title: String, value: Int) -> some View {
+    private func summaryMetric(_ title: String, value: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 5) {
             Text(title)
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(CodexVistaTheme.dashboardMutedText)
-            Text(TokenFormatter.compact(value))
+            Text(value)
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
                 .foregroundStyle(CodexVistaTheme.dashboardAccent)
                 .monospacedDigit()

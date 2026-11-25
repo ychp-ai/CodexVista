@@ -22,6 +22,7 @@ struct DashboardSnapshot: Sendable {
     let subscriptionCycle: SubscriptionCycle?
     let quotas: [QuotaSnapshot]
     let quotaHistory: QuotaHistorySnapshot
+    let rollingSevenDayQuotaConsumption: QuotaConsumption
     let outputTokenRate: OutputTokenRate?
     let models: [ModelUsage]
     let dailyUsage: [DailyUsage]
@@ -38,6 +39,7 @@ struct DashboardSnapshot: Sendable {
         subscriptionCycle: SubscriptionCycle? = nil,
         quotas: [QuotaSnapshot],
         quotaHistory: QuotaHistorySnapshot = .empty,
+        rollingSevenDayQuotaConsumption: QuotaConsumption = .init(),
         outputTokenRate: OutputTokenRate? = nil,
         models: [ModelUsage],
         dailyUsage: [DailyUsage],
@@ -53,6 +55,7 @@ struct DashboardSnapshot: Sendable {
         self.subscriptionCycle = subscriptionCycle
         self.quotas = quotas
         self.quotaHistory = quotaHistory
+        self.rollingSevenDayQuotaConsumption = rollingSevenDayQuotaConsumption
         self.outputTokenRate = outputTokenRate
         self.models = models
         self.dailyUsage = dailyUsage
@@ -64,6 +67,7 @@ struct DashboardSnapshot: Sendable {
     }
 
     var todayTokens: Int { period(id: "today").total }
+    var todayQuotaConsumption: QuotaConsumption { period(id: "today").quotaConsumption }
     var sevenDayTokens: Int { period(id: "sevenDays").total }
     var thirtyDayTokens: Int { period(id: "thirtyDays").total }
     var totalTokens: Int { period(id: "allTime").total }
@@ -652,6 +656,7 @@ struct PeriodUsage: Identifiable, Sendable {
     let output: Int
     let reasoning: Int
     var aiWorktimeMilliseconds: Int64 = 0
+    var quotaConsumption: QuotaConsumption = .init()
 
     var visibleOutput: Int { max(0, output - reasoning) }
 
@@ -888,6 +893,27 @@ struct DailyQuotaStatistics: Sendable {
     }
 }
 
+/// Percentage points of a full weekly allowance, summed over comparable local observations.
+struct QuotaConsumption: Sendable {
+    let percentagePoints: Double?
+
+    init(_ percentagePoints: Double? = nil) {
+        self.percentagePoints = percentagePoints
+    }
+
+    static func total(in usage: [DailyUsage]) -> Self {
+        let values = usage.compactMap(\.quotaConsumption.percentagePoints)
+        return Self(values.isEmpty ? nil : values.reduce(0, +))
+    }
+
+    var formatted: String {
+        guard let percentagePoints else { return "—" }
+        return (percentagePoints / 100).formatted(.percent.precision(.fractionLength(0...1)))
+    }
+
+    static let help = "累计本机观测到的 7 天额度降幅，按观测时间归入所选范围。跨额度周期累计可超过 100%。缺少可比观测时显示 —。"
+}
+
 struct DailyUsage: Identifiable, Sendable {
     let id: String
     let day: String
@@ -901,6 +927,7 @@ struct DailyUsage: Identifiable, Sendable {
     let referencePricedModelCount: Int
     let modelEntries: [ModelUsageEntry]
     var quotaStatistics: DailyQuotaStatistics? = nil
+    let quotaConsumption: QuotaConsumption
 
     init(
         id: String,
@@ -913,7 +940,8 @@ struct DailyUsage: Identifiable, Sendable {
         estimatedCostUSD: Double? = nil,
         unpricedModelCount: Int = 0,
         referencePricedModelCount: Int = 0,
-        modelEntries: [ModelUsageEntry] = []
+        modelEntries: [ModelUsageEntry] = [],
+        quotaConsumption: QuotaConsumption = .init()
     ) {
         self.id = id
         self.day = day
@@ -926,6 +954,7 @@ struct DailyUsage: Identifiable, Sendable {
         self.unpricedModelCount = unpricedModelCount
         self.referencePricedModelCount = referencePricedModelCount
         self.modelEntries = modelEntries
+        self.quotaConsumption = quotaConsumption
     }
 }
 

@@ -139,6 +139,7 @@ struct MenuBarPopoverView: View {
     private let onOpenDashboard: (() -> Void)?
     private let onOpenSettings: (() -> Void)?
     @State private var showsDetails = false
+    @State private var quotaRange: MenuBarQuotaRange = .today
 
     init(
         store: DashboardStore,
@@ -162,6 +163,7 @@ struct MenuBarPopoverView: View {
                         if store.snapshot != nil {
                             Button {
                                 showsDetails.toggle()
+                                quotaRange = .today
                             } label: {
                                 Label(showsDetails ? "收起趋势与构成" : "展开趋势与构成", systemImage: showsDetails ? "chevron.up" : "chevron.down")
                                     .frame(maxWidth: .infinity, minHeight: 24)
@@ -389,9 +391,31 @@ struct MenuBarPopoverView: View {
 
             quotaSection
 
-            if showsDetails {
-                Divider().overlay(CodexVistaTheme.dashboardBorder)
-                MenuBarQuotaHistoryChart(history: store.snapshot?.quotaHistory ?? .empty)
+            if let snapshot = store.snapshot {
+                HStack {
+                    LabeledContent(quotaRange == .today ? "今日额度消耗" : "近 7 日额度消耗") {
+                        Text(quotaRange.consumption(in: snapshot).formatted)
+                            .font(CodexVistaTheme.metricFont(size: 16))
+                            .foregroundStyle(CodexVistaTheme.dashboardAccent)
+                            .monospacedDigit()
+                    }
+                    .font(.caption)
+                    .accessibilityElement(children: .combine)
+                    .help(QuotaConsumption.help)
+                    if showsDetails {
+                        Picker("趋势范围", selection: $quotaRange) {
+                            Text("今日").tag(MenuBarQuotaRange.today)
+                            Text("7 日").tag(MenuBarQuotaRange.sevenDays)
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .frame(width: 112)
+                    }
+                }
+                if showsDetails {
+                    Divider().overlay(CodexVistaTheme.dashboardBorder)
+                    MenuBarQuotaHistoryChart(history: snapshot.quotaHistory, timeRange: quotaRange)
+                }
             }
         }
         .dashboardCard(padding: 14)
@@ -590,19 +614,25 @@ struct MenuBarPopoverView: View {
     }
 }
 
-struct MenuBarQuotaHistoryChart: View {
-    private enum TimeRange: Hashable {
-        case today
-        case sevenDays
-    }
+enum MenuBarQuotaRange: Hashable {
+    case today
+    case sevenDays
 
+    func consumption(in snapshot: DashboardSnapshot) -> QuotaConsumption {
+        switch self {
+        case .today: snapshot.todayQuotaConsumption
+        case .sevenDays: snapshot.rollingSevenDayQuotaConsumption
+        }
+    }
+}
+
+struct MenuBarQuotaHistoryChart: View {
     let history: QuotaHistorySnapshot
-    var now = Date()
+    let timeRange: MenuBarQuotaRange
     @State private var hoveredDate: Date?
-    @State private var timeRange: TimeRange = .today
 
     private var visibleHistory: QuotaHistorySnapshot {
-        timeRange == .today ? history.today(now: now) : history
+        timeRange == .today ? history.today(now: history.end) : history
     }
 
     private func changeDescription(_ change: QuotaHistorySnapshot.PointChange) -> String {
@@ -642,13 +672,6 @@ struct MenuBarQuotaHistoryChart: View {
                         .font(.system(size: 10))
                         .foregroundStyle(CodexVistaTheme.dashboardCachedInput)
                 }
-                Picker("趋势范围", selection: $timeRange) {
-                    Text("今日").tag(TimeRange.today)
-                    Text("7 日").tag(TimeRange.sevenDays)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(width: 112)
             }
             Group {
                 if displayedHistory.points.isEmpty {

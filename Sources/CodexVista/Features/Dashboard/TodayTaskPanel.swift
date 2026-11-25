@@ -3,6 +3,7 @@ import SwiftUI
 
 struct TodayTaskPanel: View {
     let ranking: WorkspaceUsageRanking
+    let quotaConsumption: QuotaConsumption
 
     @State private var selectedTaskID: TodayTaskUsageEntry.ID?
     @State private var detailWindowController: ProjectDetailWindowController?
@@ -90,6 +91,9 @@ struct TodayTaskPanel: View {
             headerMetric("进行中", value: "\(runningTaskCount)")
             headerSeparator
             headerMetric("今日 Token", value: TokenFormatter.compact(ranking.totalTokens))
+            headerSeparator
+            headerMetric("额度消耗", value: quotaConsumption.formatted)
+                .help(QuotaConsumption.help)
             headerSeparator
             headerMetric(
                 "耗时",
